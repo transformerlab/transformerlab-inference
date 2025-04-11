@@ -1667,7 +1667,7 @@ class Llama31Adapter(BaseModelAdapter):
 
 
 class Llama4Adapter(BaseModelAdapter):
-    """The model adapter for google/gemma-3"""
+    """The model adapter for Llama-4 models"""
 
     def match(self, model_path: str):
         return "llama-4" in model_path.lower()
