@@ -1682,7 +1682,7 @@ class Llama4Adapter(BaseModelAdapter):
         model = Llama4ForConditionalGeneration.from_pretrained(
                 model_path,
                 attn_implementation="flex_attention",
-                torch_dtype=torch.bfloat16,
+                torch_dtype=from_pretrained_kwargs.get("torch_dtype", torch.float16),
                 device_map=device_map,
             )
         return model, tokenizer
