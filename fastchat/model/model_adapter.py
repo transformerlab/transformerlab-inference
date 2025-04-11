@@ -1674,9 +1674,9 @@ class Llama4Adapter(BaseModelAdapter):
 
     def load_model(self, model_path: str, from_pretrained_kwargs: dict):
         revision = from_pretrained_kwargs.get("revision", "main")
-        device_map = from_pretrained_kwargs.get("device_map", None)
-        if device_map == "sequential":
-            device_map = "auto"
+        device_map = from_pretrained_kwargs.get("device_map", "sequential")
+        # if device_map == "sequential":
+        #     device_map = "auto"
         # print("From pretrained kwargs", from_pretrained_kwargs)
         tokenizer = AutoTokenizer.from_pretrained(model_path, revision=revision)
         model = Llama4ForConditionalGeneration.from_pretrained(
