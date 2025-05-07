@@ -361,7 +361,7 @@ SEQUENCE_LENGTH_KEYS = [
 ]
 
 
-def get_context_length(config):
+def get_context_length(config, default=2048):
     """Get the context length of a model from a huggingface model config."""
     rope_scaling = getattr(config, "rope_scaling", None)
     if rope_scaling:
@@ -373,7 +373,7 @@ def get_context_length(config):
         val = getattr(config, key, None)
         if val is not None:
             return int(rope_scaling_factor * val)
-    return 2048
+    return default
 
 
 def str_to_torch_dtype(dtype: str):
