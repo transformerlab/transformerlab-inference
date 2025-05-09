@@ -223,6 +223,44 @@ def load_compress_model(model_path, device, torch_dtype, use_fast, revision="mai
     return model, tokenizer
 
 
+def load_compress_4bit_model(model_path, device, torch_dtype, use_fast, revision="main"):
+    """
+    Load a model with 4-bit quantization using the latest transformers and bitsandbytes integration.
+    This function does not use the older custom quantization logic.
+    """
+    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+
+    # Set up quantization config for 4-bit
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch_dtype,
+    )
+
+    # Load tokenizer
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path, use_fast=use_fast, revision=revision, trust_remote_code=True
+        )
+    except TypeError:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path, use_fast=not use_fast, revision=revision, trust_remote_code=True
+        )
+
+    # Load model with 4-bit quantization
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        device_map="auto" if device == "auto" else {"": device},
+        quantization_config=quantization_config,
+        torch_dtype=torch_dtype,
+        trust_remote_code=True,
+        revision=revision,
+    )
+    model.eval()
+    return model, tokenizer
+
+
 def compress(tensor, config):
     """Simulate group-wise quantization."""
     if not config.enabled:
