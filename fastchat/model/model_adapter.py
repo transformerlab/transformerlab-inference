@@ -28,7 +28,7 @@ from transformers import (
 
 from fastchat.constants import CPU_ISA
 from fastchat.conversation import Conversation, get_conv_template
-from fastchat.model.compression import load_compress_model
+from fastchat.model.compression import load_compress_4bit_model, load_compress_model
 from fastchat.model.llama_condense_monkey_patch import replace_llama_with_condense
 from fastchat.model.model_chatglm import generate_stream_chatglm
 from fastchat.model.model_codet5p import generate_stream_codet5p
@@ -141,6 +141,14 @@ class BaseModelAdapter:
             use_fast=self.use_fast_tokenizer,
             revision=revision,
         )
+    def load_compress_4bit_model(self, model_path, device, torch_dtype, revision="main"):
+        return load_compress_4bit_model(
+            model_path,
+            device,
+            torch_dtype,
+            use_fast=self.use_fast_tokenizer,
+            revision=revision,
+        )
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
         return get_conv_template("one_shot")
@@ -214,6 +222,7 @@ def load_model(
     xft_config: Optional[XftConfig] = None,
     revision: str = "main",
     debug: bool = False,
+    load_4bit: bool = False,
 ):
     """Load a model from Hugging Face."""
     import accelerate
@@ -306,6 +315,21 @@ def load_model(
             )
         else:
             model, tokenizer = adapter.load_compress_model(
+                model_path=model_path,
+                device=device,
+                torch_dtype=kwargs["torch_dtype"],
+                revision=revision,
+            )
+            if debug:
+                print(model)
+            return model, tokenizer
+    elif load_4bit:
+        if num_gpus != 1:
+            warnings.warn(
+                "4-bit quantization is not supported for multi-gpu inference."
+            )
+        else:
+            model, tokenizer = adapter.load_compress_4bit_model(
                 model_path=model_path,
                 device=device,
                 torch_dtype=kwargs["torch_dtype"],
@@ -539,6 +563,9 @@ def add_model_args(parser):
     )
     parser.add_argument(
         "--load-8bit", action="store_true", help="Use 8-bit quantization"
+    )
+    parser.add_argument(
+        "--load-4bit", action="store_true", help="Use 4-bit quantization"
     )
     parser.add_argument(
         "--cpu-offloading",
