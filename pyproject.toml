@@ -47,7 +47,7 @@ llm_judge = ["openai<1", "anthropic>=0.3", "ray"]
 dev = ["black==23.3.0", "pylint==2.8.2"]
 
 [project.urls]
-"Homepage" = "https://github.com/transformerlab/FastChat"
+"Homepage" = "https://github.com/transformerlab/transformerlab-inference"
 "Bug Tracker" = "https://github.com/transformerlab/transformerlab-app/issues"
 
 [tool.setuptools.packages.find]
