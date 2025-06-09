@@ -11,11 +11,10 @@ from typing import List
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
-from vllm import AsyncLLMEngine
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.sampling_params import SamplingParams
 from vllm.utils import random_uuid
 from openai import OpenAI
+import httpx
+
 
 from fastchat.serve.base_model_worker import BaseModelWorker
 from fastchat.serve.model_worker import (
@@ -184,14 +183,14 @@ def acquire_worker_semaphore():
     return worker.semaphore.acquire()
 
 # TODO: can I remove this completely?
-# def create_background_tasks(request_id):
-#     async def abort_request() -> None:
-#         await engine.abort(request_id)
+def create_background_tasks(request_id):
+    async def abort_request() -> None:
+        print("trying to abort but not implemented")
 
-#     background_tasks = BackgroundTasks()
-#     background_tasks.add_task(release_worker_semaphore)
-#     background_tasks.add_task(abort_request)
-#     return background_tasks
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(release_worker_semaphore)
+    background_tasks.add_task(abort_request)
+    return background_tasks
 
 
 @app.post("/worker_generate_stream")
