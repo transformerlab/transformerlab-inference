@@ -142,7 +142,7 @@ class OpenAIWorker(BaseModelWorker):
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST",
-                self.proxy_url, #TODO: change base_url name to proxy_url
+                self.proxy_url,
                 headers=headers,
                 json=gen_params,
             ) as resp:
@@ -182,7 +182,6 @@ def acquire_worker_semaphore():
         worker.semaphore = asyncio.Semaphore(worker.limit_worker_concurrency)
     return worker.semaphore.acquire()
 
-# TODO: can I remove this completely?
 def create_background_tasks(request_id):
     async def abort_request() -> None:
         print("trying to abort but not implemented")
