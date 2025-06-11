@@ -1,18 +1,19 @@
 """
 A server that provides OpenAI-compatible RESTful APIs. It supports:
 - Completions.
+- Chat Completions.
 """
 
 import argparse
 import asyncio
 import json
 from typing import List
+import tiktoken
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
-from vllm.utils import random_uuid
-from openai import OpenAI
+import uuid
 import httpx
 
 
@@ -21,7 +22,6 @@ from fastchat.serve.model_worker import (
     logger,
     worker_id,
 )
-from fastchat.utils import get_context_length, is_partial_stop
 
 # TODO: add logger 
 app = FastAPI()
@@ -34,6 +34,7 @@ class OpenAIWorker(BaseModelWorker):
         proxy_url: str,
         api_key: str,
         worker_id: str,
+        model_path: str,
         model_names: List[str],
         limit_worker_concurrency: int,
         no_register: bool,
@@ -42,33 +43,31 @@ class OpenAIWorker(BaseModelWorker):
         super().__init__(
             controller_addr,
             worker_addr,
-            proxy_url,
-            api_key,
             worker_id,
+            model_path,
             model_names,
             limit_worker_concurrency,
+            no_register,
             conv_template,
         )
+
+        self.proxy_url = proxy_url
+        self.api_key = api_key
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
         )
 
-        # client = OpenAI(
-        #     api_key=self.api_key,
-        #     base_url=self.proxy_url,
-        # )
-
-        #TODO: Do we need Tokenizer?
         #TODO: How to handle context length?
+        self.context_len = 1000
 
         if not no_register:
             self.init_heart_beat()
 
     async def generate_stream(self, params):
         self.call_ct += 1
-
-
+        
+        # TODO: we can remove these to make code cleaner
         prompt = params.pop("prompt")
         request_id = params.pop("request_id")
         temperature = float(params.get("temperature", 1.0))
@@ -79,14 +78,11 @@ class OpenAIWorker(BaseModelWorker):
         max_new_tokens = params.get("max_new_tokens", 256)
         stop_str = params.get("stop", None)
         stop_token_ids = params.get("stop_token_ids", None) or []
-        #TODO: Should we handle eos_token_id?
-        # if self.tokenizer.eos_token_id is not None:
-        #     stop_token_ids.append(self.tokenizer.eos_token_id)
         echo = params.get("echo", True)
         use_beam_search = params.get("use_beam_search", False)
         best_of = params.get("best_of", None)
-
         request = params.get("request", None)
+        model = params.get("model", "llama2")
 
         # Handle stop_str
         stop = set()
@@ -95,19 +91,13 @@ class OpenAIWorker(BaseModelWorker):
         elif isinstance(stop_str, list) and stop_str != []:
             stop.update(stop_str)
 
-        # for tid in stop_token_ids:
-        #     if tid is not None:
-        #         s = self.tokenizer.decode(tid)
-        #         if s != "":
-        #             stop.add(s)
-
         # make sampling params in vllm
         top_p = max(top_p, 1e-5)
         if temperature <= 1e-5:
             top_p = 1.0
 
         gen_params = {
-            "model": self.model_names[0],
+            "model": model,
             "prompt": prompt,
             "temperature": temperature,
             # "logprobs": logprobs, TODO: Should we handle logprobs?
@@ -126,23 +116,39 @@ class OpenAIWorker(BaseModelWorker):
         if use_beam_search:
             gen_params.update({"use_beam_search": use_beam_search})
         
-        logger.debug(f"==== request ====\n{gen_params}")
-        # return gen_params #TODO: should handle gen_params as a function
 
+        if params["type"] == "chat_completion":
+            proxy_url = self.proxy_url + "/chat/completions"
+            # hardcoded messages here for ollama-llama2
+            gen_params["messages"] =  [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant."
+            },
+            {
+                "role": "user",
+                "content": "Hello!"
+            }
+        ]
+        elif params["type"] == "completion":
+            proxy_url = self.proxy_url + "/completions"
+        else:
+            raise ValueError(f"Unsupported type: {params['type']}")
+        
+        logger.info(f"==== request ====\n{gen_params}")
 
-        # If you have auth, add it here (e.g., self.api_key)
         headers = {
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
         }
-        if hasattr(self, "api_key") and self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        text_outputs = ""
+        finish_reasons = []
 
-        # Forward the request to the proxy target (OpenAI-compatible backend)
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST",
-                self.proxy_url,
+                proxy_url,
                 headers=headers,
                 json=gen_params,
             ) as resp:
@@ -162,10 +168,31 @@ class OpenAIWorker(BaseModelWorker):
                         data = line[5:].strip()
                         if data == "[DONE]":
                             break
-                        # Optionally filter/modify here if needed
-                        yield (data + "\0").encode()
+                        try:
+                            chunk = json.loads(data)
+                            if params["type"] == "chat_completion":
+                                text = chunk["choices"][0]["delta"]["content"]
+                            else:
+                                text = chunk["choices"][0]["text"]
+                            finish_reason = chunk.get("choices", [{}])[0].get("finish_reason", None)
 
-        #TODO: make sure the yield here is synced with the following yield and then remove it.
+                            text_outputs += text
+                            if finish_reason:
+                                finish_reasons.append(finish_reason)
+                            
+                            ret = {
+                            "text": text_outputs,
+                            "error_code": 0,
+                            "finish_reason": finish_reasons[0] if finish_reasons else None,
+                        }
+                            
+                            yield (json.dumps(ret) + "\0").encode()
+
+                        except Exception:
+                            print("⚠️ Failed to decode chunk:", data)
+                            continue
+
+                #yield (json.dumps({**ret, **{"finish_reason": None}}) + "\0").encode()
 
     async def generate(self, params):
         async for x in self.generate_stream(params):
@@ -196,7 +223,7 @@ def create_background_tasks(request_id):
 async def api_generate_stream(request: Request):
     params = await request.json()
     await acquire_worker_semaphore()
-    request_id = random_uuid()
+    request_id = str(uuid.uuid4())
     params["request_id"] = request_id
     params["request"] = request
     generator = worker.generate_stream(params)
@@ -208,7 +235,7 @@ async def api_generate_stream(request: Request):
 async def api_generate(request: Request):
     params = await request.json()
     await acquire_worker_semaphore()
-    request_id = random_uuid()
+    request_id = str(uuid.uuid4())
     params["request_id"] = request_id
     params["request"] = request
     output = await worker.generate(params)
@@ -225,7 +252,17 @@ async def api_get_status(request: Request):
 @app.post("/count_token")
 async def api_count_token(request: Request):
     params = await request.json()
-    return worker.count_token(params)
+    #TODO: needed to implemet this for "messages" which is for chat completion
+    prompt = params["prompt"]
+    #TODO: encoding = tiktoken.model.encoding_for_model(model_name)
+    encoding = tiktoken.get_encoding("cl100k_base")
+    input_ids = encoding.encode(prompt)
+    input_echo_len = len(input_ids)
+    ret = {
+            "count": input_echo_len,
+            "error_code": 0,
+        }
+    return ret
 
 
 @app.post("/worker_get_conv_template")
@@ -236,16 +273,6 @@ async def api_get_conv(request: Request):
 @app.post("/model_details")
 async def api_model_details(request: Request):
     return {"context_length": worker.context_len}
-
-# TODO: do we need this also?
-# @app.post("/v1/completions", dependencies=[Depends(check_api_key)])
-# def create_completion(request: Request):
-#     pass
-
-# TODO: do we need this also?
-# @app.post("/api/v1/chat/completions")
-# def create_chat_completion(request: Request):
-#     pass
 
 
 if __name__ == "__main__":
@@ -274,10 +301,11 @@ if __name__ == "__main__":
     worker = OpenAIWorker(
         args.controller_address,
         args.worker_address,
-        args.api_base,
+        args.proxy_url,
         args.api_key,
         worker_id,
-        args.model_names,
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", #harcoded this for testing
+        ["TinyLlama-1.1B-Chat-v1.0"], # harcoded this for testing
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
