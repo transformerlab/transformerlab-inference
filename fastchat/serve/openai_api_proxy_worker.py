@@ -67,22 +67,14 @@ class OpenAIWorker(BaseModelWorker):
     async def generate_stream(self, params):
         self.call_ct += 1
         
-        # TODO: we can remove these to make code cleaner
-        prompt = params.pop("prompt")
-        request_id = params.pop("request_id")
+        stop_str = params.get("stop", None)
+        best_of = params.get("best_of", None)
+        
         temperature = float(params.get("temperature", 1.0))
         top_p = float(params.get("top_p", 1.0))
-        top_k = params.get("top_k", -1.0)
-        presence_penalty = float(params.get("presence_penalty", 0.0))
-        frequency_penalty = float(params.get("frequency_penalty", 0.0))
-        max_new_tokens = params.get("max_new_tokens", 256)
-        stop_str = params.get("stop", None)
-        stop_token_ids = params.get("stop_token_ids", None) or []
-        echo = params.get("echo", True)
-        use_beam_search = params.get("use_beam_search", False)
-        best_of = params.get("best_of", None)
-        request = params.get("request", None)
-        model = params.get("model", "llama2")
+        top_p = max(top_p, 1e-5)
+        if temperature <= 1e-5:
+            top_p = 1.0
 
         # Handle stop_str
         stop = set()
@@ -91,47 +83,33 @@ class OpenAIWorker(BaseModelWorker):
         elif isinstance(stop_str, list) and stop_str != []:
             stop.update(stop_str)
 
-        # make sampling params in vllm
-        top_p = max(top_p, 1e-5)
-        if temperature <= 1e-5:
-            top_p = 1.0
-
+        
+        #TODO: Should we handle logprobs?
         gen_params = {
-            "model": model,
-            "prompt": prompt,
+            "model": params.get("model"),
             "temperature": temperature,
-            # "logprobs": logprobs, TODO: Should we handle logprobs?
             "top_p": top_p,
-            "top_k": top_k,
-            "presence_penalty": presence_penalty,
-            "frequency_penalty": frequency_penalty,
-            "max_new_tokens": max_new_tokens,
-            "echo": echo,
-            "stop_token_ids": stop_token_ids,
+            "presence_penalty": float(params.get("presence_penalty", 0.0)),
+            "frequency_penalty": float(params.get("frequency_penalty", 0.0)),
+            "max_tokens": params.get("max_new_tokens", 256),
             "stop": list(stop),
             "stream": True,
     }
-        if best_of:
-            gen_params.update({"best_of": best_of})
-        if use_beam_search:
-            gen_params.update({"use_beam_search": use_beam_search})
         
 
         if params["type"] == "chat_completion":
             proxy_url = self.proxy_url + "/chat/completions"
-            # hardcoded messages here for ollama-llama2
-            gen_params["messages"] =  [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant."
-            },
-            {
-                "role": "user",
-                "content": "Hello!"
-            }
-        ]
+            gen_params.update({"messages": params["messages"]})
+        
         elif params["type"] == "completion":
             proxy_url = self.proxy_url + "/completions"
+            gen_params.update({
+                "prompt": params["prompt"],
+                "echo": params.get("echo", True),
+            })
+            if best_of:
+                gen_params.update({"best_of": best_of})
+
         else:
             raise ValueError(f"Unsupported type: {params['type']}")
         
@@ -210,6 +188,7 @@ def acquire_worker_semaphore():
     return worker.semaphore.acquire()
 
 def create_background_tasks(request_id):
+    #TODO: implement this
     async def abort_request() -> None:
         print("trying to abort but not implemented")
 
@@ -304,8 +283,8 @@ if __name__ == "__main__":
         args.proxy_url,
         args.api_key,
         worker_id,
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", #harcoded this for testing
-        ["TinyLlama-1.1B-Chat-v1.0"], # harcoded this for testing
+        args.model_names[0],
+        args.model_names,
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
