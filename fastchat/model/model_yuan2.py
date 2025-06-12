@@ -25,6 +25,7 @@ def generate_stream_yuan2(
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 0))
     top_k = int(params.get("top_k", 1))  # -1 means disable
+    min_p = float(params.get("min_p", 0.0))  # 0.0 means disable
     max_new_tokens = int(params.get("max_new_tokens", 512))
     stop_str = params.get("stop", "<eod>")
     echo = bool(params.get("echo", True))
@@ -52,6 +53,7 @@ def generate_stream_yuan2(
         no_repeat_ngram_size=10,
         top_p=top_p,
         top_k=top_k,
+        min_p = min_p
     )
 
     generation_kwargs = dict(

@@ -64,6 +64,7 @@ def get_gen_kwargs(
         "return_full_text": bool(params.get("echo", False)),
         "max_new_tokens": int(params.get("max_new_tokens", 256)),
         "top_p": float(params.get("top_p", 1.0)),
+        "min_p": float(params.get("min_p", 0.0)), 
         "temperature": float(params.get("temperature", 1.0)),
         "stop_sequences": stop_sequences,
         "repetition_penalty": float(params.get("repetition_penalty", 1.0)),

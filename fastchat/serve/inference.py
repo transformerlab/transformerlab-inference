@@ -27,6 +27,7 @@ from transformers.generation.logits_process import (
     TemperatureLogitsWarper,
     TopKLogitsWarper,
     TopPLogitsWarper,
+    MinPLogitsWarper,  # <-- add import
 )
 
 from fastchat.conversation import get_conv_template, SeparatorStyle
@@ -43,7 +44,7 @@ from fastchat.utils import is_partial_stop, is_sentence_complete, get_context_le
 
 
 def prepare_logits_processor(
-    temperature: float, repetition_penalty: float, top_p: float, top_k: int
+    temperature: float, repetition_penalty: float, top_p: float, top_k: int, min_p: float = 0.0
 ) -> LogitsProcessorList:
     processor_list = LogitsProcessorList()
     # TemperatureLogitsWarper doesn't accept 0.0, 1.0 makes it a no-op so we skip two cases.
@@ -55,6 +56,8 @@ def prepare_logits_processor(
         processor_list.append(TopPLogitsWarper(top_p))
     if top_k > 0:
         processor_list.append(TopKLogitsWarper(top_k))
+    if min_p > 0.0:
+        processor_list.append(MinPLogitsWarper(min_p))
     return processor_list
 
 
@@ -78,6 +81,7 @@ def generate_stream(
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
     top_k = int(params.get("top_k", -1))  # -1 means disable
+    min_p = float(params.get("min_p", 0.0))  # 0.0 means disable
     max_new_tokens = int(params.get("max_new_tokens", 256))
     logprobs = params.get("logprobs", None)  # FIXME: Support logprobs>1.
     echo = bool(params.get("echo", True))
@@ -89,7 +93,7 @@ def generate_stream(
         stop_token_ids.append(tokenizer.eos_token_id)
 
     logits_processor = prepare_logits_processor(
-        temperature, repetition_penalty, top_p, top_k
+        temperature, repetition_penalty, top_p, top_k, min_p
     )
     input_ids = tokenizer(prompt).input_ids
 

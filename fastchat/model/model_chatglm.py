@@ -76,6 +76,7 @@ def generate_stream_chatglm(
     temperature = float(params.get("temperature", 1.0))
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
+    min_p = float(params.get("min_p", 0.0))  # <-- add min_p param
     max_new_tokens = int(params.get("max_new_tokens", 256))
     echo = params.get("echo", True)
 
@@ -101,6 +102,10 @@ def generate_stream_chatglm(
     }
     if temperature > 1e-5:
         gen_kwargs["temperature"] = temperature
+    if min_p > 0.0:
+        from transformers.generation.logits_process import MinPLogitsWarper
+
+        gen_kwargs["logits_processor"].append(MinPLogitsWarper(min_p))
 
     total_len = 0
     for total_ids in model.stream_generate(**inputs, **gen_kwargs):

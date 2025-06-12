@@ -100,6 +100,7 @@ class DashInferWorker(BaseModelWorker):
         temperature = params.get("temperature")
         top_k = params.get("top_k")
         top_p = params.get("top_p")
+        min_p = params.get("min_p", 0.0)
         repetition_penalty = params.get("repetition_penalty")
         presence_penalty = params.get("presence_penalty")
         max_new_tokens = params.get("max_new_tokens")
@@ -123,6 +124,8 @@ class DashInferWorker(BaseModelWorker):
             gen_cfg["top_k"] = dashinfer_style_top_k
         if top_p is not None:
             gen_cfg["top_p"] = float(top_p)
+        if min_p is not None and min_p > 0.0:
+            gen_cfg["min_p"] = float(min_p)
         if repetition_penalty is not None:
             gen_cfg["repetition_penalty"] = float(repetition_penalty)
         if presence_penalty is not None:
