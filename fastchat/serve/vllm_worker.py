@@ -72,6 +72,7 @@ class VLLMWorker(BaseModelWorker):
         temperature = float(params.get("temperature", 1.0))
         top_p = float(params.get("top_p", 1.0))
         top_k = params.get("top_k", -1.0)
+        min_p = float(params.get("min_p", 0.0))
         presence_penalty = float(params.get("presence_penalty", 0.0))
         frequency_penalty = float(params.get("frequency_penalty", 0.0))
         max_new_tokens = params.get("max_new_tokens", 256)
@@ -107,6 +108,7 @@ class VLLMWorker(BaseModelWorker):
             n=1,
             temperature=temperature,
             top_p=top_p,
+            min_p=min_p,
             use_beam_search=use_beam_search,
             stop=list(stop),
             stop_token_ids=stop_token_ids,

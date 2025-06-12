@@ -25,6 +25,7 @@ def generate_stream_falcon(
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
     top_k = int(params.get("top_k", 50))  # -1 means disable
+    min_p = float(params.get("min_p", 0.0))  # -1 means disable
     max_new_tokens = int(params.get("max_new_tokens", 256))
     stop_str = params.get("stop", None)
     echo = bool(params.get("echo", True))
@@ -52,6 +53,7 @@ def generate_stream_falcon(
         no_repeat_ngram_size=10,
         top_p=top_p,
         top_k=top_k,
+        min_p=min_p,
         eos_token_id=stop_token_ids,
     )
 

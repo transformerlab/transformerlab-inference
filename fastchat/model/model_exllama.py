@@ -28,6 +28,7 @@ def generate_stream_exllama(
     settings.temperature = float(params.get("temperature", 0.85))
     settings.top_k = int(params.get("top_k", 50))
     settings.top_p = float(params.get("top_p", 0.8))
+    settings.min_p = float(params.get("min_p", 0.0))
     settings.token_repetition_penalty = float(params.get("repetition_penalty", 1.15))
     settings.disallow_tokens(generator.tokenizer, [generator.tokenizer.eos_token_id])
 
