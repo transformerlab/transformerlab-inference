@@ -86,7 +86,7 @@ class OpenAIWorker(BaseModelWorker):
         
         #TODO: Should we handle logprobs?
         gen_params = {
-            "model": params.get("model"),
+            "model": params.get("model", "llama2"),
             "temperature": temperature,
             "top_p": top_p,
             "presence_penalty": float(params.get("presence_penalty", 0.0)),
@@ -283,8 +283,8 @@ if __name__ == "__main__":
         args.proxy_url,
         args.api_key,
         worker_id,
-        args.model_names[0],
-        args.model_names,
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        ["TinyLlama-1.1B-Chat-v1.0"],
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
