@@ -86,7 +86,7 @@ class OpenAIWorker(BaseModelWorker):
         
         #TODO: Should we handle logprobs?
         gen_params = {
-            "model": params.get("model", "llama2"),
+            "model": params.get("model", "llama3.2"),
             "temperature": temperature,
             "top_p": top_p,
             "presence_penalty": float(params.get("presence_penalty", 0.0)),
@@ -264,6 +264,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--proxy-url", type=str, default="http://localhost:8000/v1")
     parser.add_argument("--api-key", type=str, default="EMPTY")
+    parser.add_argument("--model", type=str, default="llama3.2")
     parser.add_argument(
         "--model-names",
         type=lambda s: s.split(","),
