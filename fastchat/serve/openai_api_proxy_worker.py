@@ -33,6 +33,7 @@ class OpenAIWorker(BaseModelWorker):
         worker_addr: str,
         proxy_url: str,
         api_key: str,
+        proxy_model: str,
         worker_id: str,
         model_path: str,
         model_names: List[str],
@@ -53,6 +54,7 @@ class OpenAIWorker(BaseModelWorker):
 
         self.proxy_url = proxy_url
         self.api_key = api_key
+        self.proxy_model = proxy_model
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -86,7 +88,7 @@ class OpenAIWorker(BaseModelWorker):
         
         #TODO: Should we handle logprobs?
         gen_params = {
-            "model": params.get("model", "llama3.2"),
+            "model": self.proxy_model,
             "temperature": temperature,
             "top_p": top_p,
             "presence_penalty": float(params.get("presence_penalty", 0.0)),
@@ -283,6 +285,7 @@ if __name__ == "__main__":
         args.worker_address,
         args.proxy_url,
         args.api_key,
+        args.model,
         worker_id,
         "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         ["TinyLlama-1.1B-Chat-v1.0"],
