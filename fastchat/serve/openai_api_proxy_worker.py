@@ -61,7 +61,7 @@ class OpenAIWorker(BaseModelWorker):
         )
 
         #TODO: How to handle context length?
-        self.context_len = 1000
+        self.context_len = 2048
 
         if not no_register:
             self.init_heart_beat()
