@@ -135,10 +135,8 @@ class OpenAIWorker(BaseModelWorker):
                 if resp.status_code != 200:
                     # Optionally, yield an error message in OpenAI format
                     yield json.dumps({
-                        "error": {
-                            "message": f"Proxy request failed: {resp.status_code} {resp.reason_phrase}",
-                            "code": resp.status_code
-                        }
+                        "error_code": 1,
+                        "text": f"Proxy request failed: {resp.status_code} {resp.reason_phrase}"
                     }).encode()
                     return
 
