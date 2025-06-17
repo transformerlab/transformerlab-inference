@@ -66,9 +66,11 @@ class OpenAIWorker(BaseModelWorker):
         if not no_register:
             self.init_heart_beat()
 
+# Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
         self.call_ct += 1
         
+        type_ = params.get("type", "completion")
         stop_str = params.get("stop", None)
         best_of = params.get("best_of", None)
         
@@ -99,11 +101,11 @@ class OpenAIWorker(BaseModelWorker):
     }
         
 
-        if params["type"] == "chat_completion":
+        if type_ == "chat_completion":
             proxy_url = self.proxy_url + "/chat/completions"
             gen_params.update({"messages": params["messages"]})
         
-        elif params["type"] == "completion":
+        elif type_ == "completion":
             proxy_url = self.proxy_url + "/completions"
             gen_params.update({
                 "prompt": params["prompt"],
@@ -148,7 +150,7 @@ class OpenAIWorker(BaseModelWorker):
                             break
                         try:
                             chunk = json.loads(data)
-                            if params["type"] == "chat_completion":
+                            if type_ == "chat_completion":
                                 text = chunk["choices"][0]["delta"]["content"]
                             else:
                                 text = chunk["choices"][0]["text"]
@@ -262,6 +264,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--controller-address", type=str, default="http://localhost:21001"
     )
+    parser.add_argument("--model-path", type=str, default="lmsys/vicuna-7b-v1.5")
     parser.add_argument("--proxy-url", type=str, default="http://localhost:8000/v1")
     parser.add_argument("--api-key", type=str, default="EMPTY")
     parser.add_argument("--model", type=str, default="llama3.2")
@@ -285,8 +288,8 @@ if __name__ == "__main__":
         args.api_key,
         args.model,
         worker_id,
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-        ["TinyLlama-1.1B-Chat-v1.0"],
+        args.model_path,
+        args.model_names,
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
