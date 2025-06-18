@@ -20,6 +20,7 @@ def generate_stream_gemma3(
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
     top_k = int(params.get("top_k", -1))  # -1 means disable
+    min_p = float(params.get("min_p", 0.0))  # -1 means disable
     max_new_tokens = int(params.get("max_new_tokens", 256))
     echo = bool(params.get("echo", True))
     stop_str = params.get("stop", None)
@@ -61,6 +62,8 @@ def generate_stream_gemma3(
         generate_kwargs["top_k"] = top_k
     if repetition_penalty > 1.0:
         generate_kwargs["repetition_penalty"] = repetition_penalty
+    if min_p > 0.0:
+        generate_kwargs["min_p"] = min_p
 
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=not echo, skip_special_tokens=True)
     generate_kwargs["streamer"] = streamer

@@ -25,6 +25,7 @@ def generate_stream_codet5p(
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
     top_k = int(params.get("top_k", 50))  # -1 means disable
+    min_p = float(params.get("min_p", 0.0)) 
     max_new_tokens = int(params.get("max_new_tokens", 1024))
     stop_token_ids = params.get("stop_token_ids", None) or []
     stop_token_ids.append(tokenizer.eos_token_id)
@@ -45,6 +46,7 @@ def generate_stream_codet5p(
         top_p=top_p,
         top_k=top_k,
         eos_token_id=stop_token_ids,
+        min_p=min_p
     )
 
     class CodeBlockStopper(StoppingCriteria):
