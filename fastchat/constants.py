@@ -4,6 +4,7 @@ Global constants.
 
 from enum import IntEnum
 import os
+from pathlib import Path
 
 REPO_PATH = os.path.dirname(os.path.dirname(__file__))
 
@@ -43,6 +44,7 @@ CONVERSATION_TURN_LIMIT = 50
 SESSION_EXPIRATION_TIME = 3600
 # The output dir of log files
 LOGDIR = os.getenv("LOGDIR", ".")
+TL_LOGDIR = os.getenv("TFL_HOME_DIR", str(Path.home() / ".transformerlab"))
 # CPU Instruction Set Architecture
 CPU_ISA = os.getenv("CPU_ISA")
 

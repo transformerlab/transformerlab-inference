@@ -56,7 +56,7 @@ class BaseModelWorker:
         self.heart_beat_thread = None
 
         if logger is None:
-            logger = build_logger("model_worker", f"model_worker_{self.worker_id}.log")
+            logger = build_logger("model_worker", "transformerlab.log")
         if worker is None:
             worker = self
 
