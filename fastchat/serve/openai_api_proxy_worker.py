@@ -31,9 +31,6 @@ from fastchat.serve.model_worker import (
 # TODO: add logger 
 app = FastAPI()
 
-workspace = os.environ["_TFL_WORKSPACE_DIR"]
-TMP_IMG_DIR = Path(f"{workspace}/plugins/vllm_server/tmp_img") # TODO: make this flxible in terms of plugin_dir
-
 class OpenAIWorker(BaseModelWorker):
     def __init__(
         self,
@@ -48,6 +45,7 @@ class OpenAIWorker(BaseModelWorker):
         limit_worker_concurrency: int,
         no_register: bool,
         conv_template: str,
+        temp_img_dir: str,
     ):
         super().__init__(
             controller_addr,
@@ -63,6 +61,7 @@ class OpenAIWorker(BaseModelWorker):
         self.proxy_url = proxy_url
         self.api_key = api_key
         self.proxy_model = proxy_model
+        self.temp_img_dir = temp_img_dir
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -98,15 +97,17 @@ class OpenAIWorker(BaseModelWorker):
         images = params.get("images", [])
         image_paths = []
         if images:
-            if os.path.exists(TMP_IMG_DIR):
-                shutil.rmtree(TMP_IMG_DIR)
-            os.makedirs(TMP_IMG_DIR, exist_ok=True)
+            if not self.temp_img_dir:
+                raise ValueError(f"Temporary image directory (`temp_img_dir`) is not set. Please provide a valid path.")
+            if os.path.exists(self.temp_img_dir):
+                shutil.rmtree(self.temp_img_dir)
+            os.makedirs(self.temp_img_dir, exist_ok=True)
 
             for i, b64_img in enumerate(images):
                 header, encoded = b64_img.split(",", 1)
                 ext = header.split("/")[1].split(";")[0]
                 img_data = base64.b64decode(encoded)
-                img_path = os.path.join(TMP_IMG_DIR, f"{uuid4()}-image_{i}.{ext}")
+                img_path = os.path.join(self.temp_img_dir, f"{uuid4()}-image_{i}.{ext}")
                 with open(img_path, "wb") as f:
                     f.write(img_data)
                 image_paths.append(img_path)
@@ -328,6 +329,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--conv-template", type=str, default=None, help="Conversation prompt template."
     )
+    parser.add_argument(
+        "--temp-img-dir", type=str, default=None
+    )
 
     args = parser.parse_args()
     
@@ -343,5 +347,6 @@ if __name__ == "__main__":
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
+        args.temp_img_dir,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
