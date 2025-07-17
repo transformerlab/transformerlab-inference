@@ -69,7 +69,7 @@ class OpenAIWorker(BaseModelWorker):
 
 # Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
-        print(f"Generating stream with params: {params}",  file=sys.stderr)
+        logger.info(f"Generating stream with params: {params}")
         self.call_ct += 1
         
         type_ = params.get("type", "completion")
