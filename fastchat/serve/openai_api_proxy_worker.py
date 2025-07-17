@@ -9,6 +9,7 @@ import asyncio
 import json
 from typing import List
 import tiktoken
+import sys
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -68,7 +69,7 @@ class OpenAIWorker(BaseModelWorker):
 
 # Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
-        print(f"Generating stream with params: {params}")
+        print(f"Generating stream with params: {params}",  file=sys.stderr)
         self.call_ct += 1
         
         type_ = params.get("type", "completion")
