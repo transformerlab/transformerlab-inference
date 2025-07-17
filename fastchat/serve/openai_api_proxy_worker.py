@@ -151,6 +151,9 @@ class OpenAIWorker(BaseModelWorker):
                             **message,
                             "content": new_content
                         }
+            gen_params.update({
+                "messages": messages_to_process
+            })
         
         elif type_ == "completion":
             proxy_url = self.proxy_url + "/completions"
