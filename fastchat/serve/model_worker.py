@@ -30,10 +30,9 @@ from fastchat.utils import (
     get_context_length,
     str_to_torch_dtype,
 )
-from pathlib import Path
 
 worker_id = str(uuid.uuid4())[:8]
-logger = build_logger("Mina", f"{Path.home()}/.transformerlab/transformerlab.log")
+logger = build_logger("model_worker", f"model_worker_{worker_id}.log")
 
 
 class ModelWorker(BaseModelWorker):
