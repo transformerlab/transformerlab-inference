@@ -9,7 +9,6 @@ import asyncio
 import json
 from typing import List
 import tiktoken
-import sys
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -105,7 +104,26 @@ class OpenAIWorker(BaseModelWorker):
 
         if type_ == "chat_completion":
             proxy_url = self.proxy_url + "/chat/completions"
-            gen_params.update({"messages": params["messages"]})
+
+            messages_to_process = params["messages"]
+
+            for message in messages_to_process:
+                # Ensure 'content' is a list before iterating its parts
+                if not isinstance(message.get("content"), list):
+                    continue
+
+                for i, content_part in enumerate(message["content"]):
+                    # Check if it's an image_url part and its 'image_url' value is a string (malformed)
+                    if (
+                        isinstance(content_part, dict) and
+                        content_part.get("type") == "image_url"
+                    ):
+                        image_url_value = content_part.get("image_url")
+                        if isinstance(image_url_value, str):
+                            # Correct the structure: wrap the string in a dictionary with a 'url' key
+                            message["content"][i]["image_url"] = {"url": image_url_value}
+
+            gen_params.update({"messages": messages_to_process})
         
         elif type_ == "completion":
             proxy_url = self.proxy_url + "/completions"
