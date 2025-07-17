@@ -6,6 +6,11 @@ A server that provides OpenAI-compatible RESTful APIs. It supports:
 
 import argparse
 import asyncio
+import os
+import base64
+import shutil
+from uuid import uuid4
+from pathlib import Path
 import json
 from typing import List
 import tiktoken
@@ -25,6 +30,9 @@ from fastchat.serve.model_worker import (
 
 # TODO: add logger 
 app = FastAPI()
+
+workspace = os.environ["_TFL_WORKSPACE_DIR"]
+TMP_IMG_DIR = Path(f"{workspace}/plugins/vllm_server/tmp_img") # TODO: make this flxible in terms of plugin_dir
 
 class OpenAIWorker(BaseModelWorker):
     def __init__(
@@ -68,7 +76,6 @@ class OpenAIWorker(BaseModelWorker):
 
 # Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
-        logger.info(f"Generating stream with params: {params}")
         self.call_ct += 1
         
         type_ = params.get("type", "completion")
@@ -87,6 +94,23 @@ class OpenAIWorker(BaseModelWorker):
             stop.add(stop_str)
         elif isinstance(stop_str, list) and stop_str != []:
             stop.update(stop_str)
+        
+        images = params.get("images", [])
+        image_paths = []
+        if images:
+            if os.path.exists(TMP_IMG_DIR):
+                shutil.rmtree(TMP_IMG_DIR)
+            os.makedirs(TMP_IMG_DIR, exist_ok=True)
+
+            for i, b64_img in enumerate(images):
+                header, encoded = b64_img.split(",", 1)
+                ext = header.split("/")[1].split(";")[0]
+                img_data = base64.b64decode(encoded)
+                img_path = os.path.join(TMP_IMG_DIR, f"{uuid4()}-image_{i}.{ext}")
+                with open(img_path, "wb") as f:
+                    f.write(img_data)
+                image_paths.append(img_path)
+
 
         
         #TODO: Should we handle logprobs?
@@ -107,23 +131,26 @@ class OpenAIWorker(BaseModelWorker):
 
             messages_to_process = params["messages"]
 
-            for message in messages_to_process:
-                # Ensure 'content' is a list before iterating its parts
-                if not isinstance(message.get("content"), list):
-                    continue
-
-                for i, content_part in enumerate(message["content"]):
-                    # Check if it's an image_url part and its 'image_url' value is a string (malformed)
-                    if (
-                        isinstance(content_part, dict) and
-                        content_part.get("type") == "image_url"
-                    ):
-                        image_url_value = content_part.get("image_url")
-                        if isinstance(image_url_value, str):
-                            # Correct the structure: wrap the string in a dictionary with a 'url' key
-                            message["content"][i]["image_url"] = {"url": image_url_value}
-
-            gen_params.update({"messages": messages_to_process})
+            if image_paths:
+                for i, message in enumerate(messages_to_process):
+                    if message["role"] == "user" and isinstance(message["content"], list):
+                        new_content = []
+                        for part in message["content"]:
+                            if part.get("type") == "image_url":
+                                if image_paths:
+                                    image_path = image_paths.pop(0)
+                                    new_content.append({
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"file://{image_path}"
+                                        }
+                                    })
+                            else:
+                                new_content.append(part)
+                        messages_to_process[i] = {
+                            **message,
+                            "content": new_content
+                        }
         
         elif type_ == "completion":
             proxy_url = self.proxy_url + "/completions"
