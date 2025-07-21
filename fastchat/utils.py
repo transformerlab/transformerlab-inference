@@ -13,6 +13,9 @@ import sys
 import time
 from typing import AsyncGenerator, Generator
 import warnings
+from transformers import AutoConfig, PretrainedConfig
+from pathlib import Path
+from typing import Optional
 
 import requests
 
@@ -483,3 +486,34 @@ def image_moderation_filter(image):
         csam_flagged = image_moderation_provider(image_bytes, "csam")
 
     return nsfw_flagged, csam_flagged
+
+def get_config(
+    model_name: str,
+    *,
+    trust_remote_code: bool = False,
+    revision: Optional[str] = None,
+    **kwargs,
+) -> PretrainedConfig:
+    """
+    Load a Hugging Face config for the given model name or path.
+    
+    Args:
+        model_name (str): HF model ID, local path, or URL.
+        trust_remote_code (bool): Whether to allow custom config classes.
+        revision (str, optional): Git revision or branch to load from.
+        **kwargs: Extra kwargs to pass to `from_pretrained()`.
+    
+    Returns:
+        PretrainedConfig
+    """
+    try:
+        config = AutoConfig.from_pretrained(
+            model_name,
+            trust_remote_code=trust_remote_code,
+            revision=revision,
+            **kwargs,
+        )
+    except Exception as e:
+        raise ValueError(f"Could not load config for '{model_name}'")
+
+    return config
