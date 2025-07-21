@@ -69,6 +69,7 @@ class OpenAIWorker(BaseModelWorker):
                 self.context_len = get_context_length(config)
             except (KeyError, AttributeError, TypeError):
                 self.context_len = 2048
+        logger.info(f"Context length for model {self.proxy_model} is {self.context_len}")
 
         if not no_register:
             self.init_heart_beat()
