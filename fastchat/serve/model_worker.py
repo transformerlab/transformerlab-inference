@@ -32,7 +32,8 @@ from fastchat.utils import (
 )
 
 worker_id = str(uuid.uuid4())[:8]
-logger = build_logger("model_worker", "transformerlab.log")
+log_filename = os.getenv("LOG_FILENAME", f"model_worker_{worker_id}.log")
+logger = build_logger("model_worker", log_filename)
 
 
 class ModelWorker(BaseModelWorker):
