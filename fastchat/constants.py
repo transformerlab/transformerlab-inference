@@ -6,6 +6,8 @@ from enum import IntEnum
 import os
 
 REPO_PATH = os.path.dirname(os.path.dirname(__file__))
+TEMP_IMAGE_DIR = os.getenv("OPENAI_PROXY_TEMP_IMAGE_DIR", "/tmp/openai_proxy_images")
+
 
 # Survey Link URL (to be removed) #00729c
 SURVEY_LINK = """<div style='text-align: left; margin: 20px 0;'>

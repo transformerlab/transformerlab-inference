@@ -17,6 +17,7 @@ import tiktoken
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastchat.constants import TEMP_IMAGE_DIR
 from fastchat.utils import get_config, get_context_length
 import uvicorn
 import uuid
@@ -47,7 +48,6 @@ class OpenAIWorker(BaseModelWorker):
         no_register: bool,
         conv_template: str,
         context_len: int,
-        temp_img_dir: str,
     ):
         super().__init__(
             controller_addr,
@@ -64,7 +64,7 @@ class OpenAIWorker(BaseModelWorker):
         self.api_key = api_key
         self.proxy_model = proxy_model
         self.context_len = context_len
-        self.temp_img_dir = temp_img_dir
+        self.temp_img_dir = TEMP_IMAGE_DIR
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -358,6 +358,5 @@ if __name__ == "__main__":
         args.no_register,
         args.conv_template,
         args.context_len,
-        args.temp_img_dir,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
