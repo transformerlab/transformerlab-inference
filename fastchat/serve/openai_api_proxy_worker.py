@@ -68,7 +68,7 @@ class OpenAIWorker(BaseModelWorker):
                 config = get_config(model_path, trust_remote_code=True)
                 self.context_len = get_context_length(config)
             except (KeyError, AttributeError, TypeError):
-                self.context_len = 2048
+                self.context_len = 4096
         logger.info(f"Context length: {self.context_len}")
 
         if not no_register:
