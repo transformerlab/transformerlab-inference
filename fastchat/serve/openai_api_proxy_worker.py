@@ -103,6 +103,7 @@ class OpenAIWorker(BaseModelWorker):
                 shutil.rmtree(self.temp_img_dir)
             os.makedirs(self.temp_img_dir, exist_ok=True)
 
+            # Decode base64 images and save them to temporary directory
             for i, b64_img in enumerate(images):
                 header, encoded = b64_img.split(",", 1)
                 ext = header.split("/")[1].split(";")[0]
