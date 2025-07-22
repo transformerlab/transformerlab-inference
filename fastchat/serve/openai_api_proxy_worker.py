@@ -17,6 +17,7 @@ import tiktoken
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastchat.utils import get_config, get_context_length
 import uvicorn
 import uuid
 import httpx
@@ -45,6 +46,7 @@ class OpenAIWorker(BaseModelWorker):
         limit_worker_concurrency: int,
         no_register: bool,
         conv_template: str,
+        context_len: int,
         temp_img_dir: str,
     ):
         super().__init__(
@@ -61,14 +63,20 @@ class OpenAIWorker(BaseModelWorker):
         self.proxy_url = proxy_url
         self.api_key = api_key
         self.proxy_model = proxy_model
+        self.context_len = context_len
         self.temp_img_dir = temp_img_dir
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
         )
 
-        #TODO: How to handle context length?
-        self.context_len = 2048
+        if not context_len:
+            try:
+                config = get_config(model_path, trust_remote_code=True)
+                self.context_len = get_context_length(config)
+            except (KeyError, AttributeError, TypeError):
+                self.context_len = 4096
+        logger.info(f"Context length: {self.context_len}")
 
         if not no_register:
             self.init_heart_beat()
@@ -330,6 +338,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--conv-template", type=str, default=None, help="Conversation prompt template."
     )
+    parser.add_argument("--context-len", type=int, default=None)
     parser.add_argument(
         "--temp-img-dir", type=str, default=None
     )
@@ -348,6 +357,7 @@ if __name__ == "__main__":
         args.limit_worker_concurrency,
         args.no_register,
         args.conv_template,
+        args.context_len,
         args.temp_img_dir,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
