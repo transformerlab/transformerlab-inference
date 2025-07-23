@@ -125,8 +125,6 @@ class OpenAIWorker(BaseModelWorker):
         else:
             raise ValueError(f"Unsupported type: {params['type']}")
         
-        logger.info(f"==== request ====\n{gen_params}")
-
         headers = {
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
