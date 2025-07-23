@@ -6,12 +6,18 @@ A server that provides OpenAI-compatible RESTful APIs. It supports:
 
 import argparse
 import asyncio
+import os
+import base64
+import shutil
+from uuid import uuid4
+from pathlib import Path
 import json
 from typing import List
 import tiktoken
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastchat.constants import TEMP_IMAGE_DIR
 from fastchat.utils import get_config, get_context_length
 import uvicorn
 import uuid
@@ -58,6 +64,7 @@ class OpenAIWorker(BaseModelWorker):
         self.api_key = api_key
         self.proxy_model = proxy_model
         self.context_len = context_len
+        self.temp_img_dir = TEMP_IMAGE_DIR
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -94,6 +101,26 @@ class OpenAIWorker(BaseModelWorker):
             stop.add(stop_str)
         elif isinstance(stop_str, list) and stop_str != []:
             stop.update(stop_str)
+        
+        images = params.get("images", [])
+        image_paths = []
+        if images:
+            if not self.temp_img_dir:
+                raise ValueError(f"Temporary image directory (`temp_img_dir`) is not set. Please provide a valid path.")
+            if os.path.exists(self.temp_img_dir):
+                shutil.rmtree(self.temp_img_dir)
+            os.makedirs(self.temp_img_dir, exist_ok=True)
+
+            # Decode base64 images and save them to temporary directory
+            for i, b64_img in enumerate(images):
+                header, encoded = b64_img.split(",", 1)
+                ext = header.split("/")[1].split(";")[0]
+                img_data = base64.b64decode(encoded)
+                img_path = os.path.join(self.temp_img_dir, f"{uuid4()}-image_{i}.{ext}")
+                with open(img_path, "wb") as f:
+                    f.write(img_data)
+                image_paths.append(img_path)
+
 
         
         #TODO: Should we handle logprobs?
@@ -111,7 +138,32 @@ class OpenAIWorker(BaseModelWorker):
 
         if type_ == "chat_completion":
             proxy_url = self.proxy_url + "/chat/completions"
-            gen_params.update({"messages": params["messages"]})
+
+            messages_to_process = params["messages"]
+
+            if image_paths:
+                for i, message in enumerate(messages_to_process):
+                    if message["role"] == "user" and isinstance(message["content"], list):
+                        new_content = []
+                        for part in message["content"]:
+                            if part.get("type") == "image_url":
+                                if image_paths:
+                                    image_path = image_paths.pop(0)
+                                    new_content.append({
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"file://{image_path}"
+                                        }
+                                    })
+                            else:
+                                new_content.append(part)
+                        messages_to_process[i] = {
+                            **message,
+                            "content": new_content
+                        }
+            gen_params.update({
+                "messages": messages_to_process
+            })
         
         elif type_ == "completion":
             proxy_url = self.proxy_url + "/completions"
@@ -287,7 +339,9 @@ if __name__ == "__main__":
         "--conv-template", type=str, default=None, help="Conversation prompt template."
     )
     parser.add_argument("--context-len", type=int, default=None)
-
+    parser.add_argument(
+        "--temp-img-dir", type=str, default=None
+    )
 
     args = parser.parse_args()
     
