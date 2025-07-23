@@ -57,7 +57,7 @@ class BaseModelWorker:
         self.heart_beat_thread = None
 
         if logger is None:
-            log_filename = os.getenv("LOG_FILENAME", f"model_worker_{self.worker_id}.log")
+            log_filename = os.getenv("TLAB_LOG", f"model_worker_{self.worker_id}.log")
             logger = build_logger("model_worker", log_filename)
         if worker is None:
             worker = self
