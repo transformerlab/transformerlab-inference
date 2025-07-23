@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 import time
 from typing import List
@@ -56,7 +57,8 @@ class BaseModelWorker:
         self.heart_beat_thread = None
 
         if logger is None:
-            logger = build_logger("model_worker", f"model_worker_{self.worker_id}.log")
+            log_filename = os.getenv("TLAB_LOG", f"model_worker_{self.worker_id}.log")
+            logger = build_logger("model_worker", log_filename)
         if worker is None:
             worker = self
 
