@@ -5,7 +5,6 @@ Usage:
 python3 -m fastchat.serve.sglang_worker --model-path liuhaotian/llava-v1.5-7b --tokenizer-path llava-hf/llava-1.5-7b-hf --port 30000 --worker-address http://localhost:30000
 """
 
-import logging
 import sys
 
 import argparse
