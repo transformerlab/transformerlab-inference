@@ -65,6 +65,7 @@ class OpenAIWorker(BaseModelWorker):
         self.proxy_model = proxy_model
         self.context_len = context_len
         self.temp_img_dir = TEMP_IMAGE_DIR
+        self.model_path = model_path
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -72,7 +73,7 @@ class OpenAIWorker(BaseModelWorker):
 
         if not context_len:
             try:
-                config = get_config(model_path, trust_remote_code=True)
+                config = get_config(self.model_path, trust_remote_code=True)
                 self.context_len = get_context_length(config)
             except Exception:
                 self.context_len = 4096
@@ -147,7 +148,7 @@ class OpenAIWorker(BaseModelWorker):
                         new_content = []
                         for part in message["content"]:
                             if part.get("type") == "image_url":
-                                if image_paths:
+                                if image_paths and self.model_path.rsplit(".", 1)[-1] != "gguf":
                                     image_path = image_paths.pop(0)
                                     new_content.append({
                                         "type": "image_url",
@@ -155,6 +156,16 @@ class OpenAIWorker(BaseModelWorker):
                                             "url": f"file://{image_path}"
                                         }
                                     })
+                                else:
+                                    image_path = images.pop(0)
+                                    new_content.append({
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": image_path
+                                        }
+                                    })
+
+
                             else:
                                 new_content.append(part)
                         messages_to_process[i] = {
