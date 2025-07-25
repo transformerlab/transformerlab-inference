@@ -1,6 +1,7 @@
 """
 Common utilities.
 """
+
 from asyncio import AbstractEventLoop
 from io import BytesIO
 import base64
@@ -27,26 +28,10 @@ visited_loggers = set()
 
 
 def build_logger(logger_name, logger_filename):
-    global handler
-
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-
-    # Set the format of root handlers
-    if not logging.getLogger().handlers:
-        if sys.version_info[1] >= 9:
-            # This is for windows
-            logging.basicConfig(level=logging.INFO, encoding="utf-8")
-        else:
-            if platform.system() == "Windows":
-                warnings.warn(
-                    "If you are running on Windows, "
-                    "we recommend you use Python >= 3.9 for UTF-8 encoding."
-                )
-            logging.basicConfig(level=logging.INFO)
-    logging.getLogger().handlers[0].setFormatter(formatter)
 
     # Redirect stdout and stderr to loggers
     stdout_logger = logging.getLogger("stdout")
@@ -62,6 +47,7 @@ def build_logger(logger_name, logger_filename):
     # Get logger
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
+    logger.propagate = False  # Prevent log duplication for root logger
 
     # Avoid httpx flooding POST logs
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -70,16 +56,23 @@ def build_logger(logger_name, logger_filename):
     if LOGDIR != "":
         os.makedirs(LOGDIR, exist_ok=True)
         filename = os.path.join(LOGDIR, logger_filename)
-        handler = logging.handlers.TimedRotatingFileHandler(
-            filename, when="D", utc=True, encoding="utf-8"
-        )
-        handler.setFormatter(formatter)
+        # Add check to prevent duplicate FileHandlers for the same log file to avoid duplicate log entries
+        if not any(
+            isinstance(h, logging.FileHandler)
+            and h.baseFilename == os.path.abspath(filename)
+            for h in logger.handlers
+        ):
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                filename, when="D", utc=True, encoding="utf-8"
+            )
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
         for l in [stdout_logger, stderr_logger, logger]:
             if l in visited_loggers:
                 continue
             visited_loggers.add(l)
-            l.addHandler(handler)
+            l.addHandler(file_handler)
 
     return logger
 
@@ -487,6 +480,7 @@ def image_moderation_filter(image):
 
     return nsfw_flagged, csam_flagged
 
+
 def get_config(
     model_name: str,
     *,
@@ -496,13 +490,13 @@ def get_config(
 ) -> PretrainedConfig:
     """
     Load a Hugging Face config for the given model name or path.
-    
+
     Args:
         model_name (str): HF model ID, local path, or URL.
         trust_remote_code (bool): Whether to allow custom config classes.
         revision (str, optional): Git revision or branch to load from.
         **kwargs: Extra kwargs to pass to `from_pretrained()`.
-    
+
     Returns:
         PretrainedConfig
     """
