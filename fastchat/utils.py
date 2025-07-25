@@ -56,7 +56,7 @@ def build_logger(logger_name, logger_filename):
     if LOGDIR != "":
         os.makedirs(LOGDIR, exist_ok=True)
         filename = os.path.join(LOGDIR, logger_filename)
-
+        # Add check to prevent duplicate FileHandlers for the same log file to avoid duplicate log entries
         if not any(
             isinstance(h, logging.FileHandler)
             and h.baseFilename == os.path.abspath(filename)
