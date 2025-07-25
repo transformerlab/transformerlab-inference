@@ -1,6 +1,7 @@
 """
 Common utilities.
 """
+
 from asyncio import AbstractEventLoop
 from io import BytesIO
 import base64
@@ -48,7 +49,7 @@ def build_logger(logger_name, logger_filename):
     # Get logger
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
-    logger.propagate = False # Prevent log duplication for root logger
+    logger.propagate = False  # Prevent log duplication for root logger
 
     # Avoid httpx flooding POST logs
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -57,10 +58,15 @@ def build_logger(logger_name, logger_filename):
     if LOGDIR != "":
         os.makedirs(LOGDIR, exist_ok=True)
         filename = os.path.join(LOGDIR, logger_filename)
-        
+
         if not any(
-        isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(filename) for h in logger.handlers):
-            file_handler = logging.handlers.TimedRotatingFileHandler(filename, when="D", utc=True, encoding="utf-8")
+            isinstance(h, logging.FileHandler)
+            and h.baseFilename == os.path.abspath(filename)
+            for h in logger.handlers
+        ):
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                filename, when="D", utc=True, encoding="utf-8"
+            )
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
@@ -476,6 +482,7 @@ def image_moderation_filter(image):
 
     return nsfw_flagged, csam_flagged
 
+
 def get_config(
     model_name: str,
     *,
@@ -485,13 +492,13 @@ def get_config(
 ) -> PretrainedConfig:
     """
     Load a Hugging Face config for the given model name or path.
-    
+
     Args:
         model_name (str): HF model ID, local path, or URL.
         trust_remote_code (bool): Whether to allow custom config classes.
         revision (str, optional): Git revision or branch to load from.
         **kwargs: Extra kwargs to pass to `from_pretrained()`.
-    
+
     Returns:
         PretrainedConfig
     """
