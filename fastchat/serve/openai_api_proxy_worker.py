@@ -23,7 +23,6 @@ import uvicorn
 import uuid
 import httpx
 
-
 from fastchat.serve.base_model_worker import BaseModelWorker
 from fastchat.serve.model_worker import (
     logger,
@@ -158,6 +157,7 @@ class OpenAIWorker(BaseModelWorker):
                                     })
                                 else:
                                     image_path = images.pop(0)
+                                    logger.info(image_path)
                                     new_content.append({
                                         "type": "image_url",
                                         "image_url": {
