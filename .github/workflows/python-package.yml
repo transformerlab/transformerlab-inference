@@ -75,6 +75,7 @@ jobs:
           PKG_VERSION=$(grep -E '^version\s*=\s*' pyproject.toml | head -1 | sed 's/version\s*=\s*"\(.*\)"/\1/')
           echo "Package name: $PKG_NAME"
           echo "Package version: $PKG_VERSION"
+          echo "Checking if version exists on PyPI..."
           EXISTS=$(curl -s https://pypi.org/pypi/$PKG_NAME/json | grep -F '"$PKG_VERSION"')
           echo "$EXISTS"
           if [ -n "$EXISTS" ]; then
