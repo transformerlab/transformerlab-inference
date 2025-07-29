@@ -77,7 +77,6 @@ jobs:
           echo "Package version: $PKG_VERSION"
           echo "Checking if version exists on PyPI..."
           EXISTS=$(curl -s https://pypi.org/pypi/$PKG_NAME/json | grep -F "\"$PKG_VERSION\"")
-          echo "POST DEBUGGING"
           if [ -n "$EXISTS" ]; then
             echo "Error: Version $PKG_VERSION of $PKG_NAME already exists on PyPI."
             exit 1
