@@ -35,7 +35,7 @@ from fastchat.utils import get_context_length, is_partial_stop
 import traceback
 
 
-
+#Monkey-patches sglang.srt.utils.configure_logger with a no-op function to bypass broken logging behavior.
 def safe_configure_logger(server_args, prefix=""):
     print(">>> [safe_configure_logger] Overriding broken configure_logger")
     pass
