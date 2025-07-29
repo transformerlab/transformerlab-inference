@@ -48,6 +48,7 @@ class OpenAIWorker(BaseModelWorker):
         no_register: bool,
         conv_template: str,
         context_len: int,
+        image_payload_encoding: str = "file_url",
     ):
         super().__init__(
             controller_addr,
@@ -65,6 +66,8 @@ class OpenAIWorker(BaseModelWorker):
         self.proxy_model = proxy_model
         self.context_len = context_len
         self.temp_img_dir = TEMP_IMAGE_DIR
+        self.model_path = model_path
+        self.image_payload_encoding = image_payload_encoding
 
         logger.info(
             f"Loading the model {self.model_names} on worker {worker_id}, worker type: Openai api proxy worker..."
@@ -72,7 +75,7 @@ class OpenAIWorker(BaseModelWorker):
 
         if not context_len:
             try:
-                config = get_config(model_path, trust_remote_code=True)
+                config = get_config(self.model_path, trust_remote_code=True)
                 self.context_len = get_context_length(config)
             except Exception:
                 self.context_len = 4096
@@ -104,7 +107,7 @@ class OpenAIWorker(BaseModelWorker):
         
         images = params.get("images", [])
         image_paths = []
-        if images:
+        if images and self.image_payload_encoding == "file_url":
             if not self.temp_img_dir:
                 raise ValueError(f"Temporary image directory (`temp_img_dir`) is not set. Please provide a valid path.")
             if os.path.exists(self.temp_img_dir):
@@ -147,7 +150,7 @@ class OpenAIWorker(BaseModelWorker):
                         new_content = []
                         for part in message["content"]:
                             if part.get("type") == "image_url":
-                                if image_paths:
+                                if image_paths and self.image_payload_encoding == "file_url":
                                     image_path = image_paths.pop(0)
                                     new_content.append({
                                         "type": "image_url",
@@ -155,6 +158,16 @@ class OpenAIWorker(BaseModelWorker):
                                             "url": f"file://{image_path}"
                                         }
                                     })
+                                elif self.image_payload_encoding == "base64":
+                                    image_path = images.pop(0)
+                                    new_content.append({
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": image_path
+                                        }
+                                    })
+
+
                             else:
                                 new_content.append(part)
                         messages_to_process[i] = {
@@ -342,6 +355,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--temp-img-dir", type=str, default=None
     )
+    parser.add_argument(
+        "--image-payload-encoding", type=str, choices=["file_url", "base64"], default="file_url"
+    )
 
     args = parser.parse_args()
     
@@ -358,5 +374,6 @@ if __name__ == "__main__":
         args.no_register,
         args.conv_template,
         args.context_len,
+        args.image_payload_encoding,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
