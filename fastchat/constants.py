@@ -6,6 +6,9 @@ from enum import IntEnum
 import os
 
 REPO_PATH = os.path.dirname(os.path.dirname(__file__))
+DEFAULT_TEMP_IMAGE_DIR = os.path.join(REPO_PATH, "temp", "images")
+TEMP_IMAGE_DIR = os.getenv("TLAB_TEMP_IMAGE_DIR", DEFAULT_TEMP_IMAGE_DIR)
+
 
 # Survey Link URL (to be removed) #00729c
 SURVEY_LINK = """<div style='text-align: left; margin: 20px 0;'>
