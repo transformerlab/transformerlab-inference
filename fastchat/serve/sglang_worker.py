@@ -30,7 +30,7 @@ from fastchat.serve.base_model_worker import BaseModelWorker
 import fastchat.serve.base_model_worker
 from fastchat.serve.model_worker import logger
 
-from fastchat.utils import get_context_length, is_partial_stop
+from fastchat.utils import get_context_length, is_partial_stop, check_if_multimodal
 
 import traceback
 
@@ -164,15 +164,6 @@ def create_model_worker():
     )
 
     return args, worker
-
-
-def check_if_multimodal(model_path: str) -> bool:
-    config_file = os.path.join(model_path, "config.json")
-    if not os.path.isfile(config_file):
-        return False
-    with open(config_file, "r") as f:
-        config = json.load(f)
-    return "image_token_index" in config or config.get("_from_multimodal", False)
 
 
 class SGLWorker(BaseModelWorker):

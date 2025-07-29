@@ -483,3 +483,11 @@ def image_moderation_filter(image):
         csam_flagged = image_moderation_provider(image_bytes, "csam")
 
     return nsfw_flagged, csam_flagged
+
+def check_if_multimodal(model_path: str) -> bool:
+    config_file = os.path.join(model_path, "config.json")
+    if not os.path.isfile(config_file):
+        return False
+    with open(config_file, "r") as f:
+        config = json.load(f)
+    return "image_token_index" in config or config.get("_from_multimodal", False)
