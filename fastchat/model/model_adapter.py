@@ -2577,9 +2577,8 @@ class GPTOSSAdapter(BaseModelAdapter):
             else {"device_map": "auto"}
         )
         tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
-        model = Gemma3ForCausalLM.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
                 model_path,
-                revision=revision,
                 torch_dtype=torch.bfloat16,
                 **device_map,
             )
@@ -2612,6 +2611,7 @@ class NoSystemAdapter(BaseModelAdapter):
 
 # Note: the registration order matters.
 # The one registered earlier has a higher matching priority.
+register_model_adapter(GPTOSSAdapter)
 register_model_adapter(Gemma3Adapter)
 register_model_adapter(PeftModelAdapter)
 register_model_adapter(StableVicunaAdapter)
