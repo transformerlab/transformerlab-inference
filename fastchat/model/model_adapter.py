@@ -2586,7 +2586,7 @@ class GPTOSSAdapter(BaseModelAdapter):
 
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
-        return get_conv_template("gpt")
+        return get_conv_template("raw")
 
 
 
