@@ -38,6 +38,7 @@ from fastchat.model.model_exllama import generate_stream_exllama
 from fastchat.model.model_xfastertransformer import generate_stream_xft
 from fastchat.model.model_cllm import generate_stream_cllm
 from fastchat.model.model_gemma3 import generate_stream_gemma3
+from fastchat.model.model_gptoss import generate_stream_gptoss
 
 from fastchat.model.monkey_patch_non_inplace import (
     replace_llama_attn_with_non_inplace_operations,
@@ -446,6 +447,7 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
     is_yuan = "yuan" in model_type
     is_cllm = "consistency-llm" in model_path.lower()
     is_gemma3 = "gemma-3" in model_path.lower()
+    is_gptoss = "gpt-oss" in model_path.lower()
 
     if is_chatglm:
         return generate_stream_chatglm
@@ -463,6 +465,8 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
         return generate_stream_cllm
     elif is_gemma3:
         return generate_stream_gemma3
+    elif is_gptoss:
+        return generate_stream_gptoss
 
     elif peft_share_base_weights and is_peft:
         # Return a curried stream function that loads the right adapter
@@ -488,6 +492,7 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
             is_yuan = "yuan" in base_model_type
             is_cllm = "consistency-llm" in model_path.lower()
             is_gemma3 = "gemma-3" in model_path.lower()
+            is_gptoss = "gpt-oss" in model_path.lower()
 
             generate_stream_function = generate_stream
             if is_chatglm:
@@ -506,6 +511,8 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
                 generate_stream_function = generate_stream_cllm
             elif is_gemma3:
                 generate_stream_function = generate_stream_gemma3
+            elif is_gptoss:
+                generate_stream_function = generate_stream_gptoss
             for x in generate_stream_function(
                 model,
                 tokenizer,
@@ -1712,6 +1719,8 @@ class CuteGPTAdapter(BaseModelAdapter):
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
         return get_conv_template("cutegpt")
+    
+
 
 
 class OpenOrcaAdapter(BaseModelAdapter):
@@ -2550,6 +2559,35 @@ class RekaAdapter(BaseModelAdapter):
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
         return get_conv_template("api_based_default")
+    
+
+class GPTOSSAdapter(BaseModelAdapter):
+    """The model adapter for google/gemma-3"""
+
+    def match(self, model_path: str):
+        return "gpt-oss" in model_path.lower()
+
+    def load_model(self, model_path: str, from_pretrained_kwargs: dict):
+        revision = from_pretrained_kwargs.get("revision", "main")
+        device_map = (
+            {
+                "tp_plan": "auto",  # Tensor Parallelism only
+            }
+            if "120b" in model_path
+            else {"device_map": "auto"}
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
+        model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=torch.bfloat16,
+                **device_map,
+            )
+        return model, tokenizer
+
+
+    def get_default_conv_template(self, model_path: str) -> Conversation:
+        return get_conv_template("raw")
+
 
 
 class NoSystemAdapter(BaseModelAdapter):
@@ -2563,6 +2601,9 @@ class NoSystemAdapter(BaseModelAdapter):
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
         return get_conv_template("api_based_default")
+    
+
+
 
 
     
@@ -2570,6 +2611,7 @@ class NoSystemAdapter(BaseModelAdapter):
 
 # Note: the registration order matters.
 # The one registered earlier has a higher matching priority.
+register_model_adapter(GPTOSSAdapter)
 register_model_adapter(Gemma3Adapter)
 register_model_adapter(PeftModelAdapter)
 register_model_adapter(StableVicunaAdapter)
