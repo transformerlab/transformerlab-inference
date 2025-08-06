@@ -33,15 +33,20 @@ def build_logger(logger_name, logger_filename):
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+
+    # Capture original streams
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+
     # Redirect stdout and stderr to loggers
     stdout_logger = logging.getLogger("stdout")
     stdout_logger.setLevel(logging.INFO)
-    sl = StreamToLogger(stdout_logger, logging.INFO)
+    sl = StreamToLogger(stdout_logger, logging.INFO, original_stream=original_stdout)
     sys.stdout = sl
 
     stderr_logger = logging.getLogger("stderr")
     stderr_logger.setLevel(logging.ERROR)
-    sl = StreamToLogger(stderr_logger, logging.ERROR)
+    sl = StreamToLogger(stderr_logger, logging.ERROR, original_stream=original_stderr)
     sys.stderr = sl
 
     # Get logger
@@ -82,10 +87,10 @@ class StreamToLogger(object):
     Fake file-like stream object that redirects writes to a logger instance.
     """
 
-    def __init__(self, logger, log_level=logging.INFO):
-        self.terminal = sys.stdout
+    def __init__(self, logger, log_level=logging.INFO, original_stream=None):
         self.logger = logger
         self.log_level = log_level
+        self.terminal = original_stream
         self.linebuf = ""
 
     def __getattr__(self, attr):
@@ -105,11 +110,15 @@ class StreamToLogger(object):
                 self.logger.log(self.log_level, encoded_message.rstrip())
             else:
                 self.linebuf += line
+            if self.terminal:
+                self.terminal.write(line)
 
     def flush(self):
         if self.linebuf != "":
             encoded_message = self.linebuf.encode("utf-8", "ignore").decode("utf-8")
             self.logger.log(self.log_level, encoded_message.rstrip())
+            if self.terminal:
+                self.terminal.write(self.linebuf)
         self.linebuf = ""
 
 
