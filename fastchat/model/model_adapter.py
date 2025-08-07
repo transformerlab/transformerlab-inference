@@ -2579,7 +2579,7 @@ class GPTOSSAdapter(BaseModelAdapter):
         tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
         model = AutoModelForCausalLM.from_pretrained(
                 model_path,
-                torch_dtype=torch.bfloat16,
+                torch_dtype="auto",
                 **device_map,
             )
         return model, tokenizer
