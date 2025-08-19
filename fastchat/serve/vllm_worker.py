@@ -65,8 +65,6 @@ class VLLMWorker(BaseModelWorker):
             self.init_heart_beat()
 
     async def generate_stream(self, params):
-        # Process tools using HF Direct approach
-        params = self.process_tools_hf(params)
         self.call_ct += 1
 
         context = params.pop("prompt")
