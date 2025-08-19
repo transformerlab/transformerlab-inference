@@ -84,22 +84,6 @@ class OpenAIWorker(BaseModelWorker):
         if not no_register:
             self.init_heart_beat()
 
-    def _log_tool_processing(self, message):
-        """Centralized logging for proxy worker tool processing"""
-        from pathlib import Path
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_message = f"[{timestamp}] [TRANSFORMERLAB_INFERENCE_DEBUG] {message}"
-        print(f"STDOUT: {log_message}")
-        try:
-            log_dir = Path.home() / ".transformerlab"
-            log_dir.mkdir(exist_ok=True)
-            log_file = log_dir / "transformerlab.log"
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"{log_message}\n")
-        except Exception as e:
-            print(f"FAILED to write to transformerlab.log: {e}")
-
     def _process_tools_for_proxy(self, params):
         """Process tools for proxy backends like Ollama/vLLM that support OpenAI tool format"""
         tools = params.get("tools", None)
@@ -121,11 +105,11 @@ class OpenAIWorker(BaseModelWorker):
                         hf_tools.append(hf_tool)
                 
                 if hf_tools:
-                    self._log_tool_processing(f"[ProxyWorker] Passing {len(hf_tools)} tools to backend: {[t['name'] for t in hf_tools]}")
+                    print(f"[ProxyWorker] Passing {len(hf_tools)} tools to backend: {[t['name'] for t in hf_tools]}")
                     # Keep tools in original format for proxy backends
                     params["tools"] = tools
             except Exception as e:
-                self._log_tool_processing(f"[ProxyWorker] Error processing tools: {e}")
+                print(f"[ProxyWorker] Error processing tools: {e}")
         
         return params
 
