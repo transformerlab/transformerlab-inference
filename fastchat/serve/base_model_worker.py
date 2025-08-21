@@ -169,6 +169,57 @@ class BaseModelWorker:
     def get_conv_template(self):
         return {"conv": self.conv}
 
+    def process_tools_hf(self, params):
+        """
+        Universal Hugging Face tool processing that can be called by any worker plugin.
+        Processes tools using Hugging Face's apply_chat_template if available.
+        
+        Args:
+            params: Dictionary containing 'tools', 'messages', and 'prompt'
+            
+        Returns:
+            Modified params with updated prompt if tools were processed
+        """
+        tools = params.get("tools", None)
+        messages = params.get("messages", None)
+        
+        if tools is not None and len(tools) > 0 and messages is not None:
+            try:        
+                # Convert tools to HF format if needed
+                hf_tools = []
+                for tool in tools:
+                    if "function" in tool:
+                        # OpenAI format: {"type": "function", "function": {...}}
+                        hf_tools.append(tool["function"])
+                    elif "name" in tool:
+                        # MCP format: {"name": "...", "description": "...", "inputSchema": {...}}
+                        hf_tool = {
+                            "name": tool["name"],
+                            "description": tool.get("description", ""),
+                            "parameters": tool.get("inputSchema", {}),
+                        }
+                        hf_tools.append(hf_tool)
+
+                if hf_tools and hasattr(self, 'tokenizer') and self.tokenizer is not None:
+                    # Try to use HF's apply_chat_template with tools
+                    try:
+                        formatted_prompt = self.tokenizer.apply_chat_template(
+                            messages, tools=hf_tools, tokenize=False, add_generation_prompt=True
+                        )
+                        params["prompt"] = formatted_prompt
+                        
+                        print(f"[BaseModelWorker] Applied chat template with {len(hf_tools)} tools")
+
+                        return params
+
+                    except Exception as e:
+                        print(f"[BaseModelWorker] Failed to apply chat template: {e}")
+
+            except Exception as e:
+                    print(f"[BaseModelWorker] Error processing tools: {e}")
+        
+        return params
+
     def generate_stream_gate(self, params):
         raise NotImplementedError
 

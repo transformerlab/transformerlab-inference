@@ -207,6 +207,8 @@ class SGLWorker(BaseModelWorker):
 
     async def generate_stream(self, params):
         try:
+            # Process tools using HF Direct approach
+            params = self.process_tools_hf(params)
             self.call_ct += 1
 
             conv_template = get_conversation_template(self.model_path)
