@@ -28,10 +28,26 @@ visited_loggers = set()
 
 
 def build_logger(logger_name, logger_filename):
+    global handler
+
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # Set the format of root handlers
+    if not logging.getLogger().handlers:
+        if sys.version_info[1] >= 9:
+            # This is for windows
+            logging.basicConfig(level=logging.INFO, encoding="utf-8")
+        else:
+            if platform.system() == "Windows":
+                warnings.warn(
+                    "If you are running on Windows, "
+                    "we recommend you use Python >= 3.9 for UTF-8 encoding."
+                )
+            logging.basicConfig(level=logging.INFO)
+    logging.getLogger().handlers[0].setFormatter(formatter)
 
     # Redirect stdout and stderr to loggers
     stdout_logger = logging.getLogger("stdout")
@@ -47,7 +63,6 @@ def build_logger(logger_name, logger_filename):
     # Get logger
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
-    logger.propagate = False  # Prevent log duplication for root logger
 
     # Avoid httpx flooding POST logs
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -56,23 +71,16 @@ def build_logger(logger_name, logger_filename):
     if LOGDIR != "":
         os.makedirs(LOGDIR, exist_ok=True)
         filename = os.path.join(LOGDIR, logger_filename)
-        # Add check to prevent duplicate FileHandlers for the same log file to avoid duplicate log entries
-        if not any(
-            isinstance(h, logging.FileHandler)
-            and h.baseFilename == os.path.abspath(filename)
-            for h in logger.handlers
-        ):
-            file_handler = logging.handlers.TimedRotatingFileHandler(
-                filename, when="D", utc=True, encoding="utf-8"
-            )
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
+        handler = logging.handlers.TimedRotatingFileHandler(
+            filename, when="D", utc=True, encoding="utf-8"
+        )
+        handler.setFormatter(formatter)
 
         for l in [stdout_logger, stderr_logger, logger]:
             if l in visited_loggers:
                 continue
             visited_loggers.add(l)
-            l.addHandler(file_handler)
+            l.addHandler(handler)
 
     return logger
 
