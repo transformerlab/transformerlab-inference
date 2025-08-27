@@ -84,7 +84,7 @@ class OpenAIWorker(BaseModelWorker):
         if not no_register:
             self.init_heart_beat()
 
-    # Required param: "type" must be either "completion" or "chat-completion"
+# Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
         self.call_ct += 1
         
@@ -126,7 +126,7 @@ class OpenAIWorker(BaseModelWorker):
 
 
         
-                #TODO: Should we handle logprobs?
+        #TODO: Should we handle logprobs?
         gen_params = {
             "model": self.proxy_model,
             "temperature": temperature,
@@ -142,7 +142,7 @@ class OpenAIWorker(BaseModelWorker):
         if "tools" in params and params["tools"]:
             tools = params["tools"]
             
-            # Convert HF format tools to OpenAI format for proxy backends like Ollama
+            # Convert HF format tools to OpenAI format for proxy backends like Ollama/vLLM
             openai_tools = []
             for tool in tools:
                 if isinstance(tool, dict):

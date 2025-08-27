@@ -181,10 +181,10 @@ class BaseModelWorker:
         Returns:
             Modified params with updated prompt if tools were processed
         """
-        tools = params.get("tools", None)
+        tools = params.get("tools", [])
         messages = params.get("messages", None)
         
-        if tools is not None and len(tools) > 0 and messages is not None:
+        if isinstance(tools, list) and len(tools) > 0 and messages is not None:
             if hasattr(self, 'tokenizer') and self.tokenizer is not None:
                 # Apply chat template directly with pre-formatted tools
                 try:
