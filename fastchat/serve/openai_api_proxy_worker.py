@@ -84,39 +84,8 @@ class OpenAIWorker(BaseModelWorker):
         if not no_register:
             self.init_heart_beat()
 
-    def _process_tools_for_proxy(self, params):
-        """Process tools for proxy backends like Ollama/vLLM that support OpenAI tool format"""
-        tools = params.get("tools", None)
-        if tools is not None and len(tools) > 0:
-            try:
-                # Convert tools to HF format for consistency
-                hf_tools = []
-                for tool in tools:
-                    if "function" in tool:
-                        # OpenAI format: {"type": "function", "function": {...}}
-                        hf_tools.append(tool["function"])
-                    elif "name" in tool:
-                        # MCP format: {"name": "...", "description": "...", "inputSchema": {...}}
-                        hf_tool = {
-                            "name": tool["name"],
-                            "description": tool.get("description", ""),
-                            "parameters": tool.get("inputSchema", {}),
-                        }
-                        hf_tools.append(hf_tool)
-                
-                if hf_tools:
-                    print(f"[ProxyWorker] Passing {len(hf_tools)} tools to backend: {[t['name'] for t in hf_tools]}")
-                    # Keep tools in original format for proxy backends
-                    params["tools"] = tools
-            except Exception as e:
-                print(f"[ProxyWorker] Error processing tools: {e}")
-        
-        return params
-
-# Required param: "type" must be either "completion" or "chat-completion"
+    # Required param: "type" must be either "completion" or "chat-completion"
     async def generate_stream(self, params):
-        # Process tools for proxy backends
-        params = self._process_tools_for_proxy(params)
         self.call_ct += 1
         
         type_ = params.get("type", "completion")
@@ -157,7 +126,7 @@ class OpenAIWorker(BaseModelWorker):
 
 
         
-        #TODO: Should we handle logprobs?
+                #TODO: Should we handle logprobs?
         gen_params = {
             "model": self.proxy_model,
             "temperature": temperature,
@@ -167,7 +136,34 @@ class OpenAIWorker(BaseModelWorker):
             "max_tokens": params.get("max_new_tokens", 256),
             "stop": list(stop),
             "stream": True,
-    }
+        }
+        
+        # Pass tools through to backend if provided
+        if "tools" in params and params["tools"]:
+            tools = params["tools"]
+            
+            # Convert HF format tools to OpenAI format for proxy backends like Ollama
+            openai_tools = []
+            for tool in tools:
+                if isinstance(tool, dict):
+                    if "function" in tool:
+                        # Already in OpenAI format
+                        openai_tools.append(tool)
+                    elif "name" in tool:
+                        # Convert from HF format to OpenAI format
+                        openai_tool = {
+                            "type": "function",
+                            "function": {
+                                "name": tool["name"],
+                                "description": tool.get("description", ""),
+                                "parameters": tool.get("parameters", {})
+                            }
+                        }
+                        openai_tools.append(openai_tool)
+                    else:
+                        openai_tools.append(tool)  # Pass through as-is
+            
+            gen_params["tools"] = openai_tools
         
 
         if type_ == "chat_completion":
