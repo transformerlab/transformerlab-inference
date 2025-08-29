@@ -172,8 +172,8 @@ class BaseModelWorker:
     def process_tools_hf(self, params):
         """
         Universal Hugging Face tool processing that can be called by any worker plugin.
-        Processes tools using Hugging Face's apply_chat_template.
-        Tools are now pre-formatted in HF format by the backend.
+        Converts OpenAI format tools to Hugging Face format and processes using apply_chat_template.
+        Tools are now passed in OpenAI format by default.
         
         Args:
             params: Dictionary containing 'tools', 'messages', and 'prompt'
@@ -186,10 +186,28 @@ class BaseModelWorker:
         
         if isinstance(tools, list) and len(tools) > 0 and messages is not None:
             if hasattr(self, 'tokenizer') and self.tokenizer is not None:
-                # Apply chat template directly with pre-formatted tools
+                # Convert OpenAI format tools to HF format
+                hf_tools = []
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        if "function" in tool:
+                            # Convert from OpenAI format to HF format
+                            hf_tool = {
+                                "name": tool["function"]["name"],
+                                "description": tool["function"].get("description", ""),
+                                "parameters": tool["function"].get("parameters", {})
+                            }
+                            hf_tools.append(hf_tool)
+                        elif "name" in tool:
+                            # Already in HF format
+                            hf_tools.append(tool)
+                        else:
+                            hf_tools.append(tool)  # Pass through as-is
+                
+                # Apply chat template with converted HF format tools
                 try:
                     formatted_prompt = self.tokenizer.apply_chat_template(
-                        messages, tools=tools, tokenize=False, add_generation_prompt=True
+                        messages, tools=hf_tools, tokenize=False, add_generation_prompt=True
                     )
                     params["prompt"] = formatted_prompt
                     

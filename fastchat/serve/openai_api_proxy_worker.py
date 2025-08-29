@@ -140,30 +140,8 @@ class OpenAIWorker(BaseModelWorker):
         
         # Pass tools through to backend if provided
         if "tools" in params and params["tools"]:
-            tools = params["tools"]
-            
-            # Convert HF format tools to OpenAI format for proxy backends like Ollama/vLLM
-            openai_tools = []
-            for tool in tools:
-                if isinstance(tool, dict):
-                    if "function" in tool:
-                        # Already in OpenAI format
-                        openai_tools.append(tool)
-                    elif "name" in tool:
-                        # Convert from HF format to OpenAI format
-                        openai_tool = {
-                            "type": "function",
-                            "function": {
-                                "name": tool["name"],
-                                "description": tool.get("description", ""),
-                                "parameters": tool.get("parameters", {})
-                            }
-                        }
-                        openai_tools.append(openai_tool)
-                    else:
-                        openai_tools.append(tool)  # Pass through as-is
-            
-            gen_params["tools"] = openai_tools
+            # Tools are already in OpenAI format by default, so pass through directly
+            gen_params["tools"] = params["tools"]
         
 
         if type_ == "chat_completion":
