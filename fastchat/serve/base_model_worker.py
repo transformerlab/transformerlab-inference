@@ -211,7 +211,7 @@ class BaseModelWorker:
                     )
                     params["prompt"] = formatted_prompt
                     
-                    print(f"[BaseModelWorker] Applied chat template with {len(tools)} tools")
+                    logger.info(f"[BaseModelWorker] Applied chat template with {len(tools)} tools")
 
                     return params
 
