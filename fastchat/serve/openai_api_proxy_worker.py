@@ -136,7 +136,12 @@ class OpenAIWorker(BaseModelWorker):
             "max_tokens": params.get("max_new_tokens", 256),
             "stop": list(stop),
             "stream": True,
-    }
+        }
+        
+        # Pass tools through to backend if provided
+        if "tools" in params and params["tools"]:
+            # Tools are already in OpenAI format by default, so pass through directly
+            gen_params["tools"] = params["tools"]
         
 
         if type_ == "chat_completion":
