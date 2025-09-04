@@ -24,6 +24,7 @@ from transformers import (
     LlamaForCausalLM,
     T5Tokenizer,
     Gemma3ForCausalLM,
+    Gemma3nForConditionalGeneration
 )
 
 from fastchat.constants import CPU_ISA
@@ -37,6 +38,7 @@ from fastchat.model.model_yuan2 import generate_stream_yuan2
 from fastchat.model.model_exllama import generate_stream_exllama
 from fastchat.model.model_xfastertransformer import generate_stream_xft
 from fastchat.model.model_cllm import generate_stream_cllm
+from fastchat.model.model_gemma3n import generate_stream_gemma3n
 from fastchat.model.model_gemma3 import generate_stream_gemma3
 from fastchat.model.model_gptoss import generate_stream_gptoss
 
@@ -446,6 +448,7 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
     is_xft = "xft" in model_type
     is_yuan = "yuan" in model_type
     is_cllm = "consistency-llm" in model_path.lower()
+    is_gemma3n = "gemma-3n" in model_path.lower()
     is_gemma3 = "gemma-3" in model_path.lower()
     is_gptoss = "gpt-oss" in model_path.lower()
 
@@ -463,6 +466,8 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
         return generate_stream_yuan2
     elif is_cllm:
         return generate_stream_cllm
+    elif is_gemma3n:
+        return generate_stream_gemma3n
     elif is_gemma3:
         return generate_stream_gemma3
     elif is_gptoss:
@@ -509,6 +514,8 @@ def get_generate_stream_function(model: torch.nn.Module, model_path: str):
                 generate_stream_function = generate_stream_yuan2
             elif is_cllm:
                 generate_stream_function = generate_stream_cllm
+            elif is_gemma3n:
+                generate_stream_function = generate_stream_gemma3n
             elif is_gemma3:
                 generate_stream_function = generate_stream_gemma3
             elif is_gptoss:
@@ -863,6 +870,31 @@ class GoogleT5Adapter(BaseModelAdapter):
             **from_pretrained_kwargs,
         )
         return model, tokenizer
+    
+class Gemma3nAdapter(BaseModelAdapter):
+    """The model adapter for google/gemma-3"""
+
+    def match(self, model_path: str):
+        return "gemma-3n" in model_path.lower()
+
+    def load_model(self, model_path: str, from_pretrained_kwargs: dict):
+        revision = from_pretrained_kwargs.get("revision", "main")
+        device_map = from_pretrained_kwargs.get("device_map", None)
+        if device_map == "sequential":
+            device_map = "auto"
+        # print("From pretrained kwargs", from_pretrained_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, revision=revision)
+        model = Gemma3nForConditionalGeneration.from_pretrained(
+                model_path,
+                revision=revision,
+                torch_dtype=torch.bfloat16,
+                device_map=device_map,
+            )
+        return model, tokenizer
+
+
+    def get_default_conv_template(self, model_path: str) -> Conversation:
+        return get_conv_template("gemma")
 
 class Gemma3Adapter(BaseModelAdapter):
     """The model adapter for google/gemma-3"""
@@ -2612,6 +2644,7 @@ class NoSystemAdapter(BaseModelAdapter):
 # Note: the registration order matters.
 # The one registered earlier has a higher matching priority.
 register_model_adapter(GPTOSSAdapter)
+register_model_adapter(Gemma3nAdapter)
 register_model_adapter(Gemma3Adapter)
 register_model_adapter(PeftModelAdapter)
 register_model_adapter(StableVicunaAdapter)
