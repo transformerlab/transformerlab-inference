@@ -19,6 +19,7 @@ import numpy as np
 import requests
 import uvicorn
 
+
 from fastchat.constants import (
     CONTROLLER_HEART_BEAT_EXPIRATION,
     WORKER_API_TIMEOUT,
@@ -72,7 +73,7 @@ class Controller:
         )
         self.heart_beat_thread.start()
 
-    def register_worker(
+    async def register_worker(
         self,
         worker_name: str,
         check_heart_beat: bool,
@@ -85,7 +86,7 @@ class Controller:
             logger.info(f"Register an existing worker: {worker_name}")
 
         if not worker_status:
-            worker_status = self.get_worker_status(worker_name)
+            worker_status = await self.get_worker_status(worker_name)
         if not worker_status:
             return False
 
@@ -101,9 +102,10 @@ class Controller:
         logger.info(f"Register done: {worker_name}, {worker_status}")
         return True
 
-    def get_worker_status(self, worker_name: str):
+    async def get_worker_status(self, worker_name: str):
+        loop = asyncio.get_event_loop()
         try:
-            r = requests.post(worker_name + "/worker_get_status", timeout=5)
+            r = await loop.run_in_executor(None, lambda: requests.post(worker_name + "/worker_get_status", timeout=1.0))
         except requests.exceptions.RequestException as e:
             logger.error(f"Get status fails: {worker_name}, {e}")
             return None
@@ -117,14 +119,22 @@ class Controller:
     def remove_worker(self, worker_name: str):
         del self.worker_info[worker_name]
 
-    def refresh_all_workers(self):
+    async def refresh_all_workers(self):
         old_info = dict(self.worker_info)
         self.worker_info = {}
 
+        tasks = []
         for w_name, w_info in old_info.items():
-            if not self.register_worker(
+            tasks.append(self.register_worker(
                 w_name, w_info.check_heart_beat, None, w_info.multimodal
-            ):
+            ))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for (w_name, w_info), result in zip(old_info.items(), results):
+            if isinstance(result, Exception):
+                logger.error(f"Error registering worker {w_name}: {result}")
+                continue
+            if not result:
                 logger.info(f"Remove stale worker: {w_name}")
 
     def list_models(self):
@@ -153,7 +163,7 @@ class Controller:
 
         return list(model_names)
 
-    def get_worker_address(self, model_name: str):
+    async def get_worker_address(self, model_name: str):
         if self.dispatch_method == DispatchMethod.LOTTERY:
             worker_names = []
             worker_speeds = []
@@ -176,7 +186,7 @@ class Controller:
                 pt = np.random.choice(np.arange(len(worker_names)), p=worker_speeds)
                 worker_name = worker_names[pt]
 
-                if self.get_worker_status(worker_name):
+                if await self.get_worker_status(worker_name):
                     break
                 else:
                     self.remove_worker(worker_name)
@@ -244,17 +254,20 @@ class Controller:
 
     # Let the controller act as a worker to achieve hierarchical
     # management. This can be used to connect isolated sub networks.
-    def worker_api_get_status(self):
+    async def worker_api_get_status(self):
         model_names = set()
         speed = 0
         queue_length = 0
 
-        for w_name in self.worker_info:
-            worker_status = self.get_worker_status(w_name)
-            if worker_status is not None:
-                model_names.update(worker_status["model_names"])
-                speed += worker_status["speed"]
-                queue_length += worker_status["queue_length"]
+        tasks = [self.get_worker_status(w_name) for w_name in self.worker_info]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception) or result is None:
+                continue
+            worker_status = result
+            model_names.update(worker_status["model_names"])
+            speed += worker_status["speed"]
+            queue_length += worker_status["queue_length"]
 
         model_names = sorted(list(model_names))
         return {
@@ -263,8 +276,8 @@ class Controller:
             "queue_length": queue_length,
         }
 
-    def worker_api_generate_stream(self, params):
-        worker_addr = self.get_worker_address(params["model"])
+    async def worker_api_generate_stream(self, params):
+        worker_addr = await self.get_worker_address(params["model"])
         if not worker_addr:
             yield self.handle_no_worker(params)
 
@@ -288,7 +301,7 @@ app = FastAPI()
 @app.post("/register_worker")
 async def register_worker(request: Request):
     data = await request.json()
-    controller.register_worker(
+    await controller.register_worker(
         data["worker_name"],
         data["check_heart_beat"],
         data.get("worker_status", None),
@@ -298,7 +311,7 @@ async def register_worker(request: Request):
 
 @app.post("/refresh_all_workers")
 async def refresh_all_workers():
-    models = controller.refresh_all_workers()
+    await controller.refresh_all_workers()
 
 
 @app.post("/list_models")
@@ -322,7 +335,7 @@ async def list_language_models():
 @app.post("/get_worker_address")
 async def get_worker_address(request: Request):
     data = await request.json()
-    addr = controller.get_worker_address(data["model"])
+    addr = await controller.get_worker_address(data["model"])
     return {"address": addr}
 
 
@@ -336,13 +349,13 @@ async def receive_heart_beat(request: Request):
 @app.post("/worker_generate_stream")
 async def worker_api_generate_stream(request: Request):
     params = await request.json()
-    generator = controller.worker_api_generate_stream(params)
+    generator = await controller.worker_api_generate_stream(params)
     return StreamingResponse(generator)
 
 
 @app.post("/worker_get_status")
 async def worker_api_get_status(request: Request):
-    return controller.worker_api_get_status()
+    return await controller.worker_api_get_status()
 
 
 @app.get("/test_connection")
