@@ -11,6 +11,7 @@ import requests
 from fastchat.constants import WORKER_HEART_BEAT_INTERVAL
 from fastchat.conversation import Conversation
 from fastchat.utils import pretty_print_semaphore, build_logger
+from lab.dirs import GLOBAL_LOG_PATH
 
 
 worker = None
@@ -57,7 +58,10 @@ class BaseModelWorker:
         self.heart_beat_thread = None
 
         if logger is None:
-            log_filename = os.getenv("TLAB_LOG", f"model_worker_{self.worker_id}.log")
+            if GLOBAL_LOG_PATH is None or GLOBAL_LOG_PATH == "":
+                log_filename = f"model_worker_{worker_id}.log"
+            else:
+                log_filename = GLOBAL_LOG_PATH
             logger = build_logger("model_worker", log_filename)
         if worker is None:
             worker = self
