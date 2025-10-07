@@ -30,9 +30,10 @@ from fastchat.utils import (
     get_context_length,
     str_to_torch_dtype,
 )
-from lab.dirs import GLOBAL_LOG_PATH
+from lab.dirs import get_global_log_path
 
 worker_id = str(uuid.uuid4())[:8]
+GLOBAL_LOG_PATH = get_global_log_path()
 if GLOBAL_LOG_PATH is None or GLOBAL_LOG_PATH == "":
     log_filename = f"model_worker_{worker_id}.log"
 else:
