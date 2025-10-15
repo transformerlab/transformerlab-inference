@@ -39,7 +39,7 @@ def generate_stream_gemma3n(
                 messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
             ).to(model.device)
         else:
-            messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+            messages = [{"role": "user", "content": prompt}]
             inputs = tokenizer.apply_chat_template(
                 messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
             ).to(model.device)
