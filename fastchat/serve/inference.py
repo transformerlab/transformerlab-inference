@@ -61,6 +61,7 @@ def prepare_logits_processor(
     return processor_list
 
 
+
 @torch.inference_mode()
 def generate_stream(
     model,
@@ -107,8 +108,6 @@ def generate_stream(
     input_echo_len = len(input_ids)
 
     if model.config.is_encoder_decoder:
-        if logprobs is not None:  # FIXME: Support logprobs for encoder-decoder models.
-            raise NotImplementedError
         encoder_output = model.encoder(
             input_ids=torch.as_tensor([input_ids], device=device)
         )[0]
@@ -117,6 +116,8 @@ def generate_stream(
             dtype=torch.int64,
             device=device,
         )
+        # For encoder-decoder models, we track decoder output tokens for logprobs
+        # (This variable is not used directly but indicates the intent for future enhancements)
     else:
         start_ids = torch.as_tensor([input_ids], device=device)
 
@@ -143,34 +144,40 @@ def generate_stream(
             past_key_values = out.past_key_values
 
             if logprobs is not None:
-                # Prefull logprobs for the prompt.
-                shift_input_ids = start_ids[..., 1:].contiguous()
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_logits = torch.log_softmax(shift_logits, dim=-1).tolist()
-                for label_id, logit in zip(
-                    shift_input_ids[0].tolist(), shift_logits[0]
-                ):
-                    token_logprobs.append(logit[label_id])
-                    # Add empty top_logprobs during prefill (would need to reconstruct full logits tensor to get these)
-                    top_logprobs_list.append({})
+                if model.config.is_encoder_decoder:
+                    # For encoder-decoder models, we only compute logprobs for generated tokens
+                    # No prefill logprobs needed since encoder input doesn't contribute to generation logprobs
+                    pass
+                else:
+                    # Prefull logprobs for the prompt.
+                    shift_input_ids = start_ids[..., 1:].contiguous()
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    shift_logits = torch.log_softmax(shift_logits, dim=-1).tolist()
+                    for label_id, logit in zip(
+                        shift_input_ids[0].tolist(), shift_logits[0]
+                    ):
+                        token_logprobs.append(logit[label_id])
+                        # Add empty top_logprobs during prefill (would need to reconstruct full logits tensor to get these)
+                        top_logprobs_list.append({})
         else:  # decoding
             if model.config.is_encoder_decoder:
+                # For encoder-decoder, use the last generated token or full sequence if interrupted
+                decoder_input = torch.as_tensor(
+                    [[output_ids[-1]] if not sent_interrupt and len(output_ids) > input_echo_len else output_ids[input_echo_len:]],
+                    device=device,
+                )
                 out = model.decoder(
-                    input_ids=torch.as_tensor(
-                        [[token] if not sent_interrupt else output_ids],
-                        device=device,
-                    ),
+                    input_ids=decoder_input,
                     encoder_hidden_states=encoder_output,
                     use_cache=True,
                     past_key_values=past_key_values if not sent_interrupt else None,
                 )
                 sent_interrupt = False
-
                 logits = model.lm_head(out[0])
             else:
                 out = model(
                     input_ids=torch.as_tensor(
-                        [[token] if not sent_interrupt else output_ids],
+                        [[output_ids[-1]] if not sent_interrupt else output_ids],
                         device=device,
                     ),
                     use_cache=True,
@@ -252,30 +259,66 @@ def generate_stream(
             )
             ret_logprobs = None
             if logprobs is not None:
-                # Calculate the start position for this streaming chunk
-                if echo:
-                    start_pos = last_sent_token_pos
-                    tokens_to_send = output_ids[start_pos:]
+                if model.config.is_encoder_decoder:
+                    # For encoder-decoder models, calculate logprobs differently
+                    # We only track generated tokens (not input tokens)
+                    generated_tokens_count = len(output_ids) - input_echo_len
+                    if generated_tokens_count > 0:
+                        # Calculate the start position for this streaming chunk
+                        if echo:
+                            # For echo=True with encoder-decoder, we still only show generated tokens
+                            start_pos = max(last_sent_token_pos, input_echo_len)
+                        else:
+                            start_pos = max(last_sent_token_pos, input_echo_len)
+                        
+                        tokens_to_send = output_ids[start_pos:]
+                        
+                        # Update last sent position for next stream chunk
+                        last_sent_token_pos = len(output_ids)
+                        
+                        # For encoder-decoder, logprobs start from the first generated token
+                        logprobs_start_idx = start_pos - input_echo_len + 1  # +1 because token_logprobs[0] is None
+                        logprobs_end_idx = len(output_ids) - input_echo_len + 1
+                        
+                        if logprobs_start_idx < len(token_logprobs) and tokens_to_send:
+                            ret_logprobs = {
+                                "text_offset": [],
+                                "tokens": [tokenizer.decode([token]) for token in tokens_to_send],
+                                "token_logprobs": token_logprobs[logprobs_start_idx:logprobs_end_idx],
+                                "top_logprobs": top_logprobs_list[logprobs_start_idx:logprobs_end_idx],
+                            }
+                            
+                            # Compute text_offset for just this chunk
+                            curr_pos = 0
+                            for text in ret_logprobs["tokens"]:
+                                ret_logprobs["text_offset"].append(curr_pos)
+                                curr_pos += len(text)
                 else:
-                    start_pos = max(last_sent_token_pos, input_echo_len)
-                    tokens_to_send = output_ids[start_pos:]
-                
-                # Update last sent position for next stream chunk
-                last_sent_token_pos = len(output_ids)
-                
-                # Format response with only new tokens
-                ret_logprobs = {
-                    "text_offset": [],
-                    "tokens": [tokenizer.decode(token) for token in tokens_to_send],
-                    "token_logprobs": token_logprobs[start_pos:],
-                    "top_logprobs": top_logprobs_list[start_pos:],
-                }
-                
-                # Compute text_offset for just this chunk
-                curr_pos = 0
-                for text in ret_logprobs["tokens"]:
-                    ret_logprobs["text_offset"].append(curr_pos)
-                    curr_pos += len(text)
+                    # Original logic for causal LM models
+                    # Calculate the start position for this streaming chunk
+                    if echo:
+                        start_pos = last_sent_token_pos
+                        tokens_to_send = output_ids[start_pos:]
+                    else:
+                        start_pos = max(last_sent_token_pos, input_echo_len)
+                        tokens_to_send = output_ids[start_pos:]
+                    
+                    # Update last sent position for next stream chunk
+                    last_sent_token_pos = len(output_ids)
+                    
+                    # Format response with only new tokens
+                    ret_logprobs = {
+                        "text_offset": [],
+                        "tokens": [tokenizer.decode(token) for token in tokens_to_send],
+                        "token_logprobs": token_logprobs[start_pos:],
+                        "top_logprobs": top_logprobs_list[start_pos:],
+                    }
+                    
+                    # Compute text_offset for just this chunk
+                    curr_pos = 0
+                    for text in ret_logprobs["tokens"]:
+                        ret_logprobs["text_offset"].append(curr_pos)
+                        curr_pos += len(text)
 
             # TODO: For the issue of incomplete sentences interrupting output, apply a patch and others can also modify it to a more elegant way
             if judge_sent_end and stopped and not is_sentence_complete(output):
