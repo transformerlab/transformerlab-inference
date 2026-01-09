@@ -58,7 +58,7 @@ class BaseModelWorker:
         self.heart_beat_thread = None
 
         if logger is None:
-            GLOBAL_LOG_PATH = get_global_log_path()
+            GLOBAL_LOG_PATH = asyncio.run(get_global_log_path())
             if GLOBAL_LOG_PATH is None or GLOBAL_LOG_PATH == "":
                 log_filename = f"model_worker_{worker_id}.log"
             else:
